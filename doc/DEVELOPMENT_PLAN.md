@@ -20,7 +20,7 @@
 │  │  └────────────────┘  │     │  • Google Cloud      │                      │
 │  │                      │     │  • Upstash (Vector)  │                      │
 │  │  ┌────────────────┐  │     │  • Upstash (Redis)   │                      │
-│  │  │ apps/api       │  │     │                      │                      │
+│  │  │ apps/server       │  │     │                      │                      │
 │  │  │ (Hono.js)      │  │     └──────────────────────┘                      │
 │  │  └────────────────┘  │                                                   │
 │  │                      │                                                   │
@@ -59,7 +59,7 @@
 
 ## Pre-Development Checklist
 
-- [ ] Turbo Repo initialized with `apps/web` and `apps/api`
+- [ ] Turbo Repo initialized with `apps/web` and `apps/server`
 - [ ] Bun installed as primary runtime
 - [ ] TypeScript strict mode enabled
 - [ ] ESLint + Prettier configured
@@ -141,7 +141,7 @@ import type { SharedType } from '@repo/shared'
 - [ ] Install Bun runtime globally
 - [ ] Initialize Turbo Repo with Bun workspaces
 - [ ] Create `apps/web` (TanStack Start + TypeScript)
-- [ ] Create `apps/api` (Hono.js + TypeScript + Bun runtime)
+- [ ] Create `apps/server` (Hono.js + TypeScript + Bun runtime)
 - [ ] Create shared packages for reusability
 - [ ] Configure path aliases and tsconfig references
 - [ ] Set up TypeScript configuration inheritance
@@ -159,7 +159,7 @@ echo-learn/
 │   │   ├── vite.config.ts
 │   │   └── tsconfig.json
 │   │
-│   └── api/                 # Hono.js backend (Bun runtime)
+│   └── server/                 # Hono.js backend (Bun runtime)
 │       ├── src/
 │       │   ├── routes/
 │       │   ├── lib/
@@ -223,7 +223,7 @@ echo-learn/
 ```
 
 ```json
-// apps/api/tsconfig.json
+// apps/server/tsconfig.json
 {
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
@@ -256,10 +256,10 @@ echo-learn/
 - [ ] Create `.env.example` with all required keys
 - [ ] Create `@repo/gcs` package for Google Cloud Storage
 - [ ] Create `@repo/logs` package for logging
-- [ ] Set up Upstash Vector client in `apps/api`
-- [ ] Set up Upstash Redis client in `apps/api`
-- [ ] Set up Gemini AI SDK in `apps/api`
-- [ ] Set up Mistral OCR client in `apps/api`
+- [ ] Set up Upstash Vector client in `apps/server`
+- [ ] Set up Upstash Redis client in `apps/server`
+- [ ] Set up Gemini AI SDK in `apps/server`
+- [ ] Set up Mistral OCR client in `apps/server`
 
 **Environment Variables:**
 ```env
@@ -363,7 +363,7 @@ export { listFiles, fileExists } from './list'
 
 **Critical Code - Upstash Clients Setup:**
 ```typescript
-// apps/api/src/lib/upstash/vector.ts
+// apps/server/src/lib/upstash/vector.ts
 
 // ** import lib
 import { Index } from '@upstash/vector'
@@ -399,7 +399,7 @@ export async function searchVectors(queryVector: number[], topK = 5) {
 ```
 
 ```typescript
-// apps/api/src/lib/upstash/redis.ts
+// apps/server/src/lib/upstash/redis.ts
 
 // ** import lib
 import { Redis } from '@upstash/redis'
@@ -433,7 +433,7 @@ export const redis = new Redis({
 
 **Critical Code - Upload API (Using GCS Package):**
 ```typescript
-// apps/api/src/routes/upload/get-signed-url.ts
+// apps/server/src/routes/upload/get-signed-url.ts
 
 // ** import types
 import type { Context } from 'hono'
@@ -539,7 +539,7 @@ export { uploadRoute }
 
 **Critical Code - Mistral OCR with Retry Logic:**
 ```typescript
-// apps/api/src/lib/ocr/mistral-ocr.ts
+// apps/server/src/lib/ocr/mistral-ocr.ts
 
 // ** import types
 import type { OcrResult } from '@/types/ocr'
@@ -694,7 +694,7 @@ function countPages(markdown: string): number {
 
 **Critical Code - Chunker:**
 ```typescript
-// apps/api/src/lib/chunker/text-chunker.ts
+// apps/server/src/lib/chunker/text-chunker.ts
 
 // ** import types
 import type { TextChunk } from '@/types/chunk'
@@ -778,7 +778,7 @@ function splitRecursively(text: string, opts: ChunkerOptions): string[] {
 
 **Critical Code - Embedding:**
 ```typescript
-// apps/api/src/lib/embedding/gemini-embed.ts
+// apps/server/src/lib/embedding/gemini-embed.ts
 
 // ** import types
 import type { TextChunk } from '@/types/chunk'
@@ -844,7 +844,7 @@ export async function generateEmbeddingsForChunks(
 
 **Critical Code - Graph Generator:**
 ```typescript
-// apps/api/src/lib/graph/graph-generator.ts
+// apps/server/src/lib/graph/graph-generator.ts
 
 // ** import types
 import type { KnowledgeGraph, GraphNode, GraphEdge } from '@/types/graph'
@@ -927,7 +927,7 @@ export async function generateGraphFromText(
 
 **Critical Code - Graph Merger:**
 ```typescript
-// apps/api/src/lib/graph/graph-merger.ts
+// apps/server/src/lib/graph/graph-merger.ts
 
 // ** import types
 import type { KnowledgeGraph, GraphNode, GraphEdge } from '@/types/graph'
@@ -1103,7 +1103,7 @@ POST /api/ingest
 
 **Critical Code - Cascade Delete:**
 ```typescript
-// apps/api/src/routes/files/delete-file.ts
+// apps/server/src/routes/files/delete-file.ts
 
 // ** import lib
 import { vectorIndex } from '@/lib/upstash/vector'
@@ -1158,7 +1158,7 @@ export async function deleteFile(userId: string, fileId: string) {
 
 **Critical Code - Endpoint Structure:**
 ```typescript
-// apps/api/src/routes/v1/chat/completions.ts
+// apps/server/src/routes/v1/chat/completions.ts
 
 // ** import types
 import type { Context } from 'hono'
@@ -1233,7 +1233,7 @@ export { chatRoute }
 
 **Critical Code - RAG Search:**
 ```typescript
-// apps/api/src/lib/rag/retrieve-context.ts
+// apps/server/src/lib/rag/retrieve-context.ts
 
 // ** import lib
 import { generateEmbedding } from '@/lib/embedding/gemini-embed'
@@ -1291,7 +1291,7 @@ export async function retrieveContext(
 
 **Critical Code - User Profile:**
 ```typescript
-// apps/api/src/lib/user/profile.ts
+// apps/server/src/lib/user/profile.ts
 
 // ** import types
 import type { UserProfile } from '@/types/user'
@@ -1351,7 +1351,7 @@ export async function markTopicCovered(
 
 **Critical Code - Prompt Builder:**
 ```typescript
-// apps/api/src/lib/prompt/system-prompt.ts
+// apps/server/src/lib/prompt/system-prompt.ts
 
 // ** import types
 import type { UserProfile } from '@/types/user'
@@ -1417,7 +1417,7 @@ ${knowledgeChunks.join('\n\n---\n\n')}
 
 **Critical Code - Streaming Response:**
 ```typescript
-// apps/api/src/lib/llm/generate-response.ts
+// apps/server/src/lib/llm/generate-response.ts
 
 // ** import types
 import type { ChatMessage } from '@/types/openai'
@@ -1482,7 +1482,7 @@ export async function generateResponse(options: GenerateOptions): Promise<string
 
 **Critical Code - Analytics Update:**
 ```typescript
-// apps/api/src/lib/analytics/update-analytics.ts
+// apps/server/src/lib/analytics/update-analytics.ts
 
 // ** import lib
 import { redis } from '@/lib/upstash/redis'
@@ -1545,7 +1545,7 @@ export async function updateAnalytics(data: AnalyticsData): Promise<void> {
 
 **Critical Code - Full Endpoint:**
 ```typescript
-// apps/api/src/routes/v1/chat/completions.ts (complete)
+// apps/server/src/routes/v1/chat/completions.ts (complete)
 
 // ** import lib
 import { retrieveContext } from '@/lib/rag/retrieve-context'
