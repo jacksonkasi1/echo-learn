@@ -16,7 +16,7 @@
 │  │                      │     │                      │                      │
 │  │  ┌────────────────┐  │     │  • 11Labs (Voice)    │                      │
 │  │  │ apps/web       │  │     │  • Gemini (LLM)      │                      │
-│  │  │ (Vite + React) │  │     │  • Mistral (OCR)     │                      │
+│  │  │ (TanStack Start) │  │     │  • Mistral (OCR)     │                      │
 │  │  └────────────────┘  │     │  • Google Cloud      │                      │
 │  │                      │     │  • Upstash (Vector)  │                      │
 │  │  ┌────────────────┐  │     │  • Upstash (Redis)   │                      │
@@ -140,7 +140,7 @@ import type { SharedType } from '@repo/shared'
 **Subtasks:**
 - [ ] Install Bun runtime globally
 - [ ] Initialize Turbo Repo with Bun workspaces
-- [ ] Create `apps/web` (Vite + React + TypeScript)
+- [ ] Create `apps/web` (TanStack Start + TypeScript)
 - [ ] Create `apps/api` (Hono.js + TypeScript + Bun runtime)
 - [ ] Create shared packages for reusability
 - [ ] Configure path aliases and tsconfig references
@@ -150,7 +150,7 @@ import type { SharedType } from '@repo/shared'
 ```
 echo-learn/
 ├── apps/
-│   ├── web/                 # Vite + React frontend
+│   ├── web/                 # TanStack Start frontend
 │   │   ├── src/
 │   │   │   ├── api/         # API client functions
 │   │   │   ├── components/
@@ -1613,15 +1613,16 @@ chatRoute.post('/completions', async (c) => {
 
 # Phase III: Frontend & 11Labs Integration
 
-> **Goal:** Build the React frontend with 11Labs voice widget and knowledge visualization
+> **Goal:** Build the TanStack Start frontend with 11Labs voice widget and knowledge visualization
 
 ---
 
 ## Task 3.1: Frontend Project Setup
 
-**Description:** Configure Vite React app with required dependencies
+**Description:** Configure TanStack Start app with required dependencies
 
 **Subtasks:**
+- [ ] Initialize TanStack Start project
 - [ ] Install React Flow for graph visualization
 - [ ] Install 11Labs Convai SDK
 - [ ] Set up Tailwind CSS
@@ -1630,6 +1631,8 @@ chatRoute.post('/completions', async (c) => {
 **Dependencies:**
 ```json
 {
+  "@tanstack/start": "latest",
+  "@tanstack/react-router": "latest",
   "@11labs/react": "latest",
   "@xyflow/react": "latest",
   "tailwindcss": "latest",
@@ -1809,7 +1812,7 @@ export function KnowledgeGraphView({ graph, coveredTopics }: Props) {
 
 **Subtasks:**
 - [ ] Create app shell with sidebar
-- [ ] Set up React Router
+- [ ] Set up TanStack Start routing and SSR
 - [ ] Create pages: Home, Upload, Study, Progress
 - [ ] Add loading states
 
@@ -2010,7 +2013,7 @@ await redis.set(`user:${userId}:graph`, {
 **Stack:**
 - **Runtime:** Bun (Development & Production)
 - **Monorepo:** Turborepo + Bun workspaces
-- **Frontend:** Vite + React + TypeScript
+- **Frontend:** TanStack Start + TypeScript
 - **Backend:** Hono.js + TypeScript + Bun
 - **Storage:** Upstash Vector + Redis
 - **Files:** Google Cloud Storage (@repo/gcs package)
