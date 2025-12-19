@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import { HugeiconsIcon } from "@hugeicons/react"
+import { BluetoothIcon, CodeIcon, ComputerIcon, CreditCardIcon, DownloadIcon, EyeIcon, File01Icon, FileIcon, FloppyDiskIcon, FolderIcon, FolderOpenIcon, HelpCircleIcon, KeyboardIcon, LanguageCircleIcon, LayoutIcon, LogoutIcon, MailIcon, MoonIcon, MoreHorizontalCircle01Icon, MoreVerticalCircle01Icon, NotificationIcon, PaintBoardIcon, PlusSignIcon, SearchIcon, SettingsIcon, ShieldIcon, SunIcon, UserIcon } from "@hugeicons/core-free-icons"
 import {
   Example,
   ExampleWrapper,
@@ -63,8 +65,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { PlusSignIcon, BluetoothIcon, MoreVerticalCircle01Icon, FileIcon, FolderIcon, FolderOpenIcon, CodeIcon, MoreHorizontalCircle01Icon, SearchIcon, FloppyDiskIcon, DownloadIcon, EyeIcon, LayoutIcon, PaintBoardIcon, SunIcon, MoonIcon, ComputerIcon, UserIcon, CreditCardIcon, SettingsIcon, KeyboardIcon, LanguageCircleIcon, NotificationIcon, MailIcon, ShieldIcon, HelpCircleIcon, File01Icon, LogoutIcon } from "@hugeicons/core-free-icons"
 
 export function ComponentExample() {
   return (
