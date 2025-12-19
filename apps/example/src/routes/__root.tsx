@@ -10,11 +10,11 @@ import Header from '../components/Header'
 
 import ClerkProvider from '../integrations/clerk/provider'
 
-import StoreDevtools from '../lib/demo-store-devtools'
-
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 
 import AiDevtools from '../lib/ai-devtools'
+
+import StoreDevtools from '../lib/demo-store-devtools'
 
 import appCss from '../styles.css?url'
 
@@ -68,9 +68,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 name: 'Tanstack Router',
                 render: <TanStackRouterDevtoolsPanel />,
               },
-              StoreDevtools,
               TanStackQueryDevtools,
               AiDevtools,
+              StoreDevtools,
             ]}
           />
         </ClerkProvider>

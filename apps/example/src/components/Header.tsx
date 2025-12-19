@@ -180,6 +180,19 @@ export default function Header() {
           )}
 
           <Link
+            to="/demo/neon"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Database size={20} />
+            <span className="font-medium">Neon</span>
+          </Link>
+
+          <Link
             to="/demo/clerk"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
@@ -190,19 +203,6 @@ export default function Header() {
           >
             <Globe size={20} />
             <span className="font-medium">Clerk</span>
-          </Link>
-
-          <Link
-            to="/demo/sentry/testing"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-            activeProps={{
-              className:
-                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
-            }}
-          >
-            <Globe size={20} />
-            <span className="font-medium">Sentry</span>
           </Link>
 
           <Link
@@ -229,19 +229,6 @@ export default function Header() {
           >
             <Webhook size={20} />
             <span className="font-medium">MCP</span>
-          </Link>
-
-          <Link
-            to="/demo/store"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-            activeProps={{
-              className:
-                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
-            }}
-          >
-            <Store size={20} />
-            <span className="font-medium">Store</span>
           </Link>
 
           <Link
@@ -281,6 +268,19 @@ export default function Header() {
           >
             <Guitar size={20} />
             <span className="font-medium">Guitar Demo</span>
+          </Link>
+
+          <Link
+            to="/demo/store"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Store size={20} />
+            <span className="font-medium">Store</span>
           </Link>
 
           {/* Demo Links End */}

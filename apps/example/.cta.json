@@ -16,14 +16,14 @@
     "biome",
     "nitro",
     "start",
+    "neon",
     "clerk",
-    "sentry",
     "drizzle",
     "mcp",
     "shadcn",
-    "t3env",
-    "store",
     "tanstack-query",
-    "tanchat"
+    "t3env",
+    "tanchat",
+    "store"
   ]
 }
