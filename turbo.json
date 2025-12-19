@@ -5,17 +5,44 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**"]
-    },
-    "lint": {
-      "dependsOn": ["^lint"]
-    },
-    "check-types": {
-      "dependsOn": ["^check-types"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "dependsOn": ["^build"]
+    },
+    "lint": {
+      "dependsOn": ["^lint"],
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "check-types": {
+      "dependsOn": ["^check-types"],
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "clean": {
+      "cache": false
     }
-  }
+  },
+  "globalDependencies": [".env", ".env.local", ".env.production"],
+  "globalEnv": [
+    "NODE_ENV",
+    "PORT",
+    "UPSTASH_VECTOR_REST_URL",
+    "UPSTASH_VECTOR_REST_TOKEN",
+    "UPSTASH_REDIS_REST_URL",
+    "UPSTASH_REDIS_REST_TOKEN",
+    "GCS_BUCKET_NAME",
+    "GCS_PROJECT_ID",
+    "GCS_KEY_FILE",
+    "GOOGLE_GENERATIVE_AI_API_KEY",
+    "MISTRAL_API_KEY",
+    "ELEVENLABS_API_KEY",
+    "ELEVENLABS_AGENT_ID",
+    "ELEVENLABS_AGENT_SECRET"
+  ]
 }

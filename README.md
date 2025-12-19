@@ -1,135 +1,187 @@
-# Turborepo starter
+# Echo-Learn
 
-This Turborepo starter is maintained by the Turborepo core team.
+> **Voice AI Study Partner** - A conversational learning system using 11Labs voice interface with custom RAG backend
 
-## Using this example
+## Overview
 
-Run the following command:
+Echo-Learn is an AI-powered study companion that helps students learn from their uploaded materials through natural voice conversations. It uses a custom LLM backend with RAG (Retrieval Augmented Generation) to provide contextual, personalized tutoring.
 
-```sh
-npx create-turbo@latest
-```
-
-## What's inside?
-
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
+## Architecture
 
 ```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           ECHO-LEARN ARCHITECTURE                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────────────┐     ┌──────────────────────┐                      │
+│  │   TURBO REPO         │     │    EXTERNAL SERVICES │                      │
+│  │                      │     │                      │                      │
+│  │  ┌────────────────┐  │     │  • 11Labs (Voice)    │                      │
+│  │  │ apps/web       │  │     │  • Gemini (LLM)      │                      │
+│  │  │ (TanStack Start)│  │     │  • Mistral (OCR)     │                      │
+│  │  └────────────────┘  │     │  • Google Cloud      │                      │
+│  │                      │     │  • Upstash (Vector)  │                      │
+│  │  ┌────────────────┐  │     │  • Upstash (Redis)   │                      │
+│  │  │ apps/server    │  │     │                      │                      │
+│  │  │ (Hono.js)      │  │     └──────────────────────┘                      │
+│  │  └────────────────┘  │                                                   │
+│  │                      │                                                   │
+│  │  ┌────────────────┐  │                                                   │
+│  │  │ packages/      │  │                                                   │
+│  │  │ shared, gcs,   │  │                                                   │
+│  │  │ logs           │  │                                                   │
+│  │  └────────────────┘  │                                                   │
+│  └──────────────────────┘                                                   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-You can build a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+## Technology Stack
+
+- **Runtime:** Bun
+- **Build System:** Turborepo
+- **Backend:** Hono.js
+- **Frontend:** TanStack Start (React)
+- **Voice AI:** 11Labs
+- **LLM:** Google Gemini
+- **OCR:** Mistral
+- **Vector DB:** Upstash Vector
+- **Cache/State:** Upstash Redis
+- **File Storage:** Google Cloud Storage
+
+## Project Structure
 
 ```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+echo-learn/
+├── apps/
+│   ├── web/                    # TanStack Start frontend
+│   └── server/                 # Hono.js backend API
+│       ├── src/
+│       │   ├── routes/         # API endpoints
+│       │   │   ├── upload/     # File upload handling
+│       │   │   ├── ingest/     # Document processing pipeline
+│       │   │   ├── files/      # File management
+│       │   │   └── v1/chat/    # OpenAI-compatible chat endpoint
+│       │   ├── lib/
+│       │   │   ├── upstash/    # Vector & Redis clients
+│       │   │   ├── ocr/        # Mistral OCR integration
+│       │   │   ├── chunker/    # Text chunking logic
+│       │   │   ├── embedding/  # Gemini embeddings
+│       │   │   ├── graph/      # Knowledge graph generation
+│       │   │   ├── rag/        # RAG context retrieval
+│       │   │   ├── llm/        # LLM response generation
+│       │   │   ├── prompt/     # System prompt building
+│       │   │   └── analytics/  # Progress tracking
+│       │   └── index.ts        # Main server entry
+│       └── package.json
+│
+├── packages/
+│   ├── gcs/                    # Google Cloud Storage utilities
+│   ├── logs/                   # Structured logging
+│   ├── shared/                 # Shared types & utilities
+│   ├── typescript-config/      # Shared TS configurations
+│   └── eslint-config/          # Shared ESLint configs
+│
+├── turbo.json
+├── package.json
+└── .env.example
 ```
 
-### Develop
+## Getting Started
 
-To develop all apps and packages, run the following command:
+### Prerequisites
 
-```
-cd my-turborepo
+- [Bun](https://bun.sh/) (v1.0 or later)
+- Google Cloud Platform account
+- Upstash account
+- Mistral API key
+- Google Gemini API key
+- 11Labs account (for voice features)
 
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
+### Installation
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
-```
-
-You can develop a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+1. Clone the repository:
+```bash
+git clone https://github.com/your-org/echo-learn.git
+cd echo-learn
 ```
 
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
+2. Install dependencies:
+```bash
+bun install
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
+3. Copy the environment template:
+```bash
+cp .env.example .env
 ```
 
-## Useful Links
+4. Configure your environment variables in `.env`
 
-Learn more about the power of Turborepo:
+5. Run the development server:
+```bash
+bun run dev
+```
 
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+## API Endpoints
+
+### File Upload
+- `POST /api/upload/signed-url` - Get signed URL for file upload
+- `POST /api/upload/confirm` - Confirm upload completion
+
+### Document Processing
+- `POST /api/ingest` - Process uploaded file through the ingestion pipeline
+- `GET /api/ingest/status/:fileId` - Get processing status
+
+### File Management
+- `GET /api/files` - List user's files
+- `GET /api/files/:fileId` - Get file details
+- `DELETE /api/files` - Delete file with cascade cleanup
+
+### Chat (OpenAI-Compatible for 11Labs)
+- `POST /v1/chat/completions` - Chat completion endpoint
+- `GET /v1/chat/completions/health` - Health check
+
+## Ingestion Pipeline
+
+The document processing pipeline:
+
+1. **Upload** - File uploaded to Google Cloud Storage via signed URL
+2. **OCR** - Text extraction using Mistral OCR (supports PDF, images, DOCX, PPTX)
+3. **Chunking** - Semantic text splitting with overlap
+4. **Embedding** - Vector embeddings generated via Gemini
+5. **Vector Storage** - Chunks stored in Upstash Vector
+6. **Graph Generation** - Knowledge graph extracted using Gemini
+7. **Graph Merge** - New knowledge merged into user's main graph
+
+## Environment Variables
+
+See `.env.example` for all required environment variables:
+
+- `UPSTASH_VECTOR_REST_URL` / `UPSTASH_VECTOR_REST_TOKEN`
+- `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`
+- `GCS_BUCKET_NAME` / `GCS_PROJECT_ID` / `GCS_KEY_FILE`
+- `GOOGLE_GENERATIVE_AI_API_KEY`
+- `MISTRAL_API_KEY`
+- `ELEVENLABS_API_KEY` / `ELEVENLABS_AGENT_SECRET`
+
+## Development
+
+### Type Checking
+```bash
+bun run check-types
+```
+
+### Linting
+```bash
+bun run lint
+```
+
+### Building
+```bash
+bun run build
+```
+
+## License
+
+MIT
