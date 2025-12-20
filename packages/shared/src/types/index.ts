@@ -38,6 +38,11 @@ export type {
   VectorSearchOptions,
   EmbeddingResult,
   BatchEmbeddingResult,
+  // Hybrid search types
+  FusionAlgorithm,
+  QueryMode,
+  HybridSearchOptions,
+  HybridUpsertOptions,
 } from "./chunk.js";
 
 // Graph types
