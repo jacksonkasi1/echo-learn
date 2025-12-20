@@ -47,8 +47,9 @@ function createModelAdapter(
           {
             messages: apiMessages,
             userId,
+            maxTokens: 4000,
             useRag: true,
-            ragTopK: 5,
+            ragTopK: 50,
             ragMinScore: 0.01,
           },
           {
