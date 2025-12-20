@@ -14,6 +14,26 @@ import { Index, type IndexConfig } from "@upstash/vector";
 // ** import utils
 import { logger } from "@repo/logs";
 
+/**
+ * Options for upserting data with Upstash's built-in embedding
+ */
+export interface UpsertWithEmbeddingOptions {
+  id: string;
+  data: string; // Text data - Upstash will generate the embedding
+  metadata: VectorMetadata;
+}
+
+/**
+ * Options for searching with Upstash's built-in embedding
+ */
+export interface SearchWithEmbeddingOptions {
+  topK?: number;
+  filter?: string;
+  includeMetadata?: boolean;
+  minScore?: number;
+  fusionAlgorithm?: FusionAlgorithm;
+}
+
 // Upstash Vector metadata type - must be flat with primitive values only
 type VectorDbMetadata = Record<
   string,
@@ -131,6 +151,130 @@ export async function upsertHybridVectors(
     logger.info(`Successfully upserted ${vectors.length} hybrid vectors`);
   } catch (error) {
     logger.error("Failed to upsert hybrid vectors", error);
+    throw error;
+  }
+}
+
+/**
+ * Upsert data with Upstash's built-in embedding (BAAI model)
+ * Upstash automatically generates embeddings server-side from the text data
+ * This eliminates the need for client-side embedding generation
+ */
+export async function upsertWithEmbedding(
+  items: UpsertWithEmbeddingOptions[],
+): Promise<void> {
+  try {
+    logger.info(`Upserting ${items.length} items with Upstash embedding`);
+
+    // Convert and sanitize metadata to Upstash-compatible format
+    const formattedItems = items.map((item) => ({
+      id: item.id,
+      data: item.data, // Text - Upstash generates embedding automatically
+      metadata: sanitizeMetadata(item.metadata),
+    }));
+
+    // Upstash Vector handles embedding generation server-side
+    await vectorIndex.upsert(formattedItems);
+
+    logger.info(
+      `Successfully upserted ${items.length} items with Upstash embedding`,
+    );
+  } catch (error) {
+    logger.error("Failed to upsert with Upstash embedding", error);
+    throw error;
+  }
+}
+
+/**
+ * Batch upsert data with Upstash's built-in embedding
+ * Processes in batches to handle large datasets efficiently
+ */
+export async function upsertWithEmbeddingBatch(
+  items: UpsertWithEmbeddingOptions[],
+  batchSize: number = 100,
+): Promise<void> {
+  try {
+    logger.info(
+      `Batch upserting ${items.length} items with Upstash embedding (batch size: ${batchSize})`,
+    );
+
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      const batchNumber = Math.floor(i / batchSize) + 1;
+      const totalBatches = Math.ceil(items.length / batchSize);
+
+      logger.info(`Processing batch ${batchNumber}/${totalBatches}`);
+
+      const formattedItems = batch.map((item) => ({
+        id: item.id,
+        data: item.data,
+        metadata: sanitizeMetadata(item.metadata),
+      }));
+
+      await vectorIndex.upsert(formattedItems);
+    }
+
+    logger.info(
+      `Successfully batch upserted ${items.length} items with Upstash embedding`,
+    );
+  } catch (error) {
+    logger.error("Failed to batch upsert with Upstash embedding", error);
+    throw error;
+  }
+}
+
+/**
+ * Search using text query with Upstash's built-in embedding
+ * Upstash automatically converts the query to a vector and performs similarity search
+ */
+export async function searchWithEmbedding(
+  query: string,
+  options: SearchWithEmbeddingOptions = {},
+): Promise<Array<VectorSearchResult>> {
+  const {
+    topK = 10,
+    filter,
+    includeMetadata = true,
+    minScore,
+    fusionAlgorithm = "RRF",
+  } = options;
+
+  try {
+    logger.info("Searching with Upstash embedding", {
+      topK,
+      hasFilter: !!filter,
+      queryLength: query.length,
+    });
+
+    const results = await vectorIndex.query({
+      data: query, // Text - Upstash generates embedding automatically
+      topK,
+      includeMetadata,
+      filter: filter as string | undefined,
+      fusionAlgorithm: FUSION_ALGORITHM_MAP[fusionAlgorithm],
+    } as Parameters<typeof vectorIndex.query>[0]);
+
+    // Map results to our type and optionally filter by minScore
+    const mappedResults: Array<VectorSearchResult> = results
+      .filter((result) => {
+        if (minScore !== undefined && result.score < minScore) {
+          return false;
+        }
+        return true;
+      })
+      .map((result) => ({
+        id: result.id as string,
+        score: result.score,
+        metadata: result.metadata as unknown as VectorMetadata,
+      }));
+
+    logger.info(
+      `Upstash embedding search found ${mappedResults.length} results`,
+    );
+
+    return mappedResults;
+  } catch (error) {
+    logger.error("Failed to search with Upstash embedding", error);
     throw error;
   }
 }

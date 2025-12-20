@@ -15,7 +15,9 @@ import { logger } from "@repo/logs";
 // Initialize Gemini client
 const getGenAI = () => {
   if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-    throw new Error("GOOGLE_GENERATIVE_AI_API_KEY environment variable is not set");
+    throw new Error(
+      "GOOGLE_GENERATIVE_AI_API_KEY environment variable is not set",
+    );
   }
   return new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
 };
@@ -48,7 +50,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
  * Generate embedding with metadata
  */
 export async function generateEmbeddingWithMetadata(
-  text: string
+  text: string,
 ): Promise<EmbeddingResult> {
   try {
     const embedding = await generateEmbedding(text);
@@ -69,7 +71,7 @@ export async function generateEmbeddingWithMetadata(
  * Processes in batches to respect rate limits
  */
 export async function generateEmbeddingsForChunks(
-  chunks: TextChunk[]
+  chunks: TextChunk[],
 ): Promise<ChunkWithEmbedding[]> {
   const results: ChunkWithEmbedding[] = [];
   const startTime = Date.now();
@@ -86,7 +88,7 @@ export async function generateEmbeddingsForChunks(
 
     try {
       const embeddings = await Promise.all(
-        batch.map((chunk) => generateEmbedding(chunk.content))
+        batch.map((chunk) => generateEmbedding(chunk.content)),
       );
 
       batch.forEach((chunk, idx) => {
@@ -111,7 +113,7 @@ export async function generateEmbeddingsForChunks(
         } catch (retryError) {
           logger.error(
             `Failed to generate embedding for chunk ${chunk.id}`,
-            retryError
+            retryError,
           );
           // Skip this chunk but continue with others
         }
@@ -122,7 +124,7 @@ export async function generateEmbeddingsForChunks(
   const elapsedMs = Date.now() - startTime;
 
   logger.info(
-    `Generated ${results.length}/${chunks.length} embeddings in ${elapsedMs}ms`
+    `Generated ${results.length}/${chunks.length} embeddings in ${elapsedMs}ms`,
   );
 
   return results;
@@ -133,7 +135,7 @@ export async function generateEmbeddingsForChunks(
  * Returns a batch result with timing and token information
  */
 export async function generateBatchEmbeddings(
-  texts: string[]
+  texts: string[],
 ): Promise<BatchEmbeddingResult> {
   const startTime = Date.now();
   const results: EmbeddingResult[] = [];
@@ -146,7 +148,7 @@ export async function generateBatchEmbeddings(
 
     try {
       const embeddings = await Promise.all(
-        batch.map((text) => generateEmbedding(text))
+        batch.map((text) => generateEmbedding(text)),
       );
 
       batch.forEach((text, idx) => {

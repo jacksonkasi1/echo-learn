@@ -3,17 +3,14 @@ import type {
   RagRetrievalOptions,
   RetrievedContext,
   VectorSearchResult,
-  HybridSearchOptions,
-  QueryMode,
   FusionAlgorithm,
 } from "@repo/shared";
 
 // ** import lib
-import { searchVectors, searchHybridVectors } from "@repo/storage";
+import { searchWithEmbedding } from "@repo/storage";
 
 // ** import utils
 import { mergeRagConfig } from "./config/rag-config.js";
-import { generateQueryEmbedding } from "./embedding/gemini-embed.js";
 import { logger } from "@repo/logs";
 import {
   selectChunksWithBudget,
@@ -22,13 +19,9 @@ import {
 } from "./context-manager.js";
 
 /**
- * Extended RAG retrieval options with hybrid search support
+ * Extended RAG retrieval options with Upstash hybrid search
  */
 export interface ExtendedRagRetrievalOptions extends RagRetrievalOptions {
-  /** Enable hybrid search (combines dense + sparse BM25) */
-  useHybridSearch?: boolean;
-  /** Query mode for hybrid index: HYBRID, DENSE, or SPARSE */
-  queryMode?: QueryMode;
   /** Fusion algorithm: RRF or DBSF */
   fusionAlgorithm?: FusionAlgorithm;
   /** Use context budget manager for dynamic chunk selection */
@@ -48,8 +41,6 @@ const DEFAULT_EXTENDED_OPTIONS: Required<
     keyof RagRetrievalOptions | "contextBudgetConfig"
   >
 > = {
-  useHybridSearch: true, // Default to hybrid search if available
-  queryMode: "HYBRID",
   fusionAlgorithm: "RRF",
   useContextBudget: true,
   reorderChunks: false,
@@ -57,7 +48,7 @@ const DEFAULT_EXTENDED_OPTIONS: Required<
 
 /**
  * Retrieve relevant context from the vector database based on a query
- * Supports both traditional dense search and hybrid search with BM25
+ * Uses Upstash's built-in hybrid search with BAAI embedding model
  * Used for RAG (Retrieval Augmented Generation) in the chat pipeline
  */
 export async function retrieveContext(
@@ -74,43 +65,26 @@ export async function retrieveContext(
       userId,
       topK: config.topK,
       minScore: config.minScore,
-      useHybridSearch: extendedOptions.useHybridSearch,
-      queryMode: extendedOptions.queryMode,
+      fusionAlgorithm: extendedOptions.fusionAlgorithm,
       useContextBudget: extendedOptions.useContextBudget,
     });
 
-    // 1. Generate query embedding using Gemini
-    const queryEmbedding = await generateQueryEmbedding(query);
-
-    // 2. Build filter for user-specific content
+    // Build filter for user-specific content
     const filter = userId ? `userId = '${userId}'` : undefined;
+    const effectiveTopK = extendedOptions.useContextBudget
+      ? config.topK * 2
+      : config.topK;
 
-    // 3. Search Vector DB - use hybrid or traditional search
-    let results: VectorSearchResult[];
+    // Search with Upstash's built-in hybrid embedding
+    const results = await searchWithEmbedding(query, {
+      topK: effectiveTopK,
+      minScore: config.minScore,
+      includeMetadata: true,
+      filter,
+      fusionAlgorithm: extendedOptions.fusionAlgorithm,
+    });
 
-    if (extendedOptions.useHybridSearch) {
-      // Use hybrid search with fusion algorithm
-      const hybridOptions: HybridSearchOptions = {
-        topK: extendedOptions.useContextBudget ? config.topK * 2 : config.topK, // Fetch more for context budget
-        minScore: config.minScore,
-        includeMetadata: true,
-        filter,
-        queryMode: extendedOptions.queryMode,
-        fusionAlgorithm: extendedOptions.fusionAlgorithm,
-      };
-
-      results = await searchHybridVectors(query, queryEmbedding, hybridOptions);
-    } else {
-      // Traditional dense vector search
-      results = await searchVectors(queryEmbedding, {
-        topK: extendedOptions.useContextBudget ? config.topK * 2 : config.topK,
-        minScore: config.minScore,
-        includeMetadata: true,
-        filter,
-      });
-    }
-
-    // 4. Apply context budget management if enabled
+    // Apply context budget management if enabled
     let context: RetrievedContext;
 
     if (extendedOptions.useContextBudget && results.length > 0) {
@@ -148,7 +122,7 @@ export async function retrieveContext(
         };
       }
     } else {
-      // Traditional extraction without budget management
+      // Extract without budget management
       context = extractContextFromResults(results);
     }
 
@@ -160,7 +134,6 @@ export async function retrieveContext(
         context.scores.length > 0
           ? context.scores.reduce((a, b) => a + b, 0) / context.scores.length
           : 0,
-      searchMode: extendedOptions.useHybridSearch ? "hybrid" : "dense",
     });
 
     return context;
@@ -180,44 +153,23 @@ export async function retrieveContextWithMetadata(
 ): Promise<{
   context: RetrievedContext;
   results: VectorSearchResult[];
-  queryEmbedding: number[];
-  searchMode: "hybrid" | "dense";
-  queryMode?: QueryMode;
-  fusionAlgorithm?: FusionAlgorithm;
+  fusionAlgorithm: FusionAlgorithm;
 }> {
   const config = mergeRagConfig(options);
   const extendedOptions = { ...DEFAULT_EXTENDED_OPTIONS, ...options };
 
   try {
-    // Generate query embedding
-    const queryEmbedding = await generateQueryEmbedding(query);
-
-    // Filter by userId to only get chunks from user's uploaded files
+    // Build filter for user-specific content
     const filter = userId ? `userId = '${userId}'` : undefined;
 
-    // Search Vector DB
-    let results: VectorSearchResult[];
-    const searchMode = extendedOptions.useHybridSearch ? "hybrid" : "dense";
-
-    if (extendedOptions.useHybridSearch) {
-      const hybridOptions: HybridSearchOptions = {
-        topK: config.topK,
-        minScore: config.minScore,
-        includeMetadata: true,
-        filter,
-        queryMode: extendedOptions.queryMode,
-        fusionAlgorithm: extendedOptions.fusionAlgorithm,
-      };
-
-      results = await searchHybridVectors(query, queryEmbedding, hybridOptions);
-    } else {
-      results = await searchVectors(queryEmbedding, {
-        topK: config.topK,
-        minScore: config.minScore,
-        includeMetadata: true,
-        filter,
-      });
-    }
+    // Search with Upstash's built-in hybrid embedding
+    const results = await searchWithEmbedding(query, {
+      topK: config.topK,
+      minScore: config.minScore,
+      includeMetadata: true,
+      filter,
+      fusionAlgorithm: extendedOptions.fusionAlgorithm,
+    });
 
     // Extract context (with or without budget management)
     let context: RetrievedContext;
@@ -239,14 +191,7 @@ export async function retrieveContextWithMetadata(
     return {
       context,
       results,
-      queryEmbedding,
-      searchMode,
-      queryMode: extendedOptions.useHybridSearch
-        ? extendedOptions.queryMode
-        : undefined,
-      fusionAlgorithm: extendedOptions.useHybridSearch
-        ? extendedOptions.fusionAlgorithm
-        : undefined,
+      fusionAlgorithm: extendedOptions.fusionAlgorithm,
     };
   } catch (error) {
     logger.error("Failed to retrieve context with metadata", error);
@@ -322,7 +267,6 @@ export async function isQueryRelevantToContent(
     const { chunks, scores } = await retrieveContext(query, userId, {
       topK: 3,
       minScore: threshold,
-      useHybridSearch: true,
       useContextBudget: false,
     });
 
