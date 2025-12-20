@@ -45,13 +45,13 @@ ${profileSection}
 3. When quizzing, generate questions based ONLY on the knowledge context
 4. Celebrate correct answers and gently correct wrong ones with encouragement
 
-### Response Format (IMPORTANT - this will be spoken aloud)
-1. Keep responses conversational and natural
-2. Use short, clear sentences
-3. Avoid bullet points, numbered lists, or markdown formatting
-4. Use natural speech patterns: "So basically...", "Think of it like...", "The key thing here is..."
-5. For emphasis, use pauses: "... and this is important..."
-6. Limit responses to 2-3 short paragraphs unless detailed explanation is requested
+### Response Format
+1. Be comprehensive and detailed when explaining topics or listing information
+2. Use Markdown formatting (bullet points, numbered lists, bold text) to structure long answers for readability
+3. When asked for a list or summary, provide all relevant details found in the context
+4. Use natural speech patterns but don't sacrifice detail for brevity
+5. If the user asks for "all details" or "everything", provide a thorough breakdown
+6. Use clear headings to organize complex information
 
 ### Interruption Handling
 1. If the user says "Stop", "Wait", or "Hold on" - acknowledge briefly: "Okay, I'll pause."
@@ -98,7 +98,7 @@ function formatProfileSection(profile: UserProfile): string {
 
   if (profile.coveredTopics.length > 0) {
     parts.push(
-      `- Topics Already Covered: ${profile.coveredTopics.slice(-10).join(", ")}${profile.coveredTopics.length > 10 ? "..." : ""}`
+      `- Topics Already Covered: ${profile.coveredTopics.slice(-10).join(", ")}${profile.coveredTopics.length > 10 ? "..." : ""}`,
     );
   }
 
@@ -137,7 +137,7 @@ function formatRelativeTime(isoString: string): string {
 export function buildQuizPrompt(
   topic: string,
   knowledgeChunks: string[],
-  difficulty: "easy" | "medium" | "hard" = "medium"
+  difficulty: "easy" | "medium" | "hard" = "medium",
 ): string {
   const difficultyGuidelines = {
     easy: "Ask basic recall questions. Accept partial answers.",
@@ -164,7 +164,7 @@ After asking, wait for the user's response before evaluating.
 export function buildSessionSummaryPrompt(
   topicsCovered: string[],
   questionsAsked: number,
-  userProfile: UserProfile
+  userProfile: UserProfile,
 ): string {
   return `
 Provide a brief, encouraging summary of this study session.
