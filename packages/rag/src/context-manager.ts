@@ -166,10 +166,13 @@ export function selectChunksWithBudget(
   // Sort by score (descending)
   const sortedResults = [...validResults].sort((a, b) => b.score - a.score);
 
-  for (const result of sortedResults) {
+  for (let i = 0; i < sortedResults.length; i++) {
+    const result = sortedResults[i];
+    if (!result) continue;
+
     // Check if we've reached limits
     if (selectedChunks.length >= cfg.maxChunks) {
-      filteredCount += sortedResults.length - selectedChunks.length;
+      filteredCount += sortedResults.length - i;
       break;
     }
 

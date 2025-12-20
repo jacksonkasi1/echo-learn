@@ -202,5 +202,7 @@ export async function rerankWithGemini(
  * Gemini is typically always available as the fallback
  */
 export function isGeminiAvailable(): boolean {
-  return !!process.env.GEMINI_API_KEY;
+  return !!(
+    process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  );
 }

@@ -87,8 +87,6 @@ export interface HybridSearchOptions extends VectorSearchOptions {
   queryMode?: QueryMode;
   /** Fusion algorithm for combining dense and sparse results */
   fusionAlgorithm?: FusionAlgorithm;
-  /** Use text-based query instead of vector (for hybrid index with auto-embedding) */
-  useTextQuery?: boolean;
 }
 
 /**

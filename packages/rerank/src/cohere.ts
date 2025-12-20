@@ -67,7 +67,10 @@ export async function rerankWithCohere(
   const startTime = Date.now();
 
   const mergedOptions = { ...DEFAULT_RERANK_CONFIG, ...options };
-  const mergedConfig = { ...DEFAULT_COHERE_CONFIG, ...config };
+  const { timeoutMs, maxRetries, ...mergedConfig } = {
+    ...DEFAULT_COHERE_CONFIG,
+    ...config,
+  };
 
   // Limit documents for cost control
   const docsToRerank = documents.slice(0, mergedOptions.maxDocuments);
