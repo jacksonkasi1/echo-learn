@@ -16,6 +16,10 @@ export interface ChatCompletionRequest {
   maxTokens?: number
   temperature?: number
   stream?: boolean
+  // RAG options
+  useRag?: boolean
+  ragTopK?: number
+  ragMinScore?: number
 }
 
 export interface ChatCompletionChoice {
@@ -40,6 +44,10 @@ export interface ChatCompletionResponse {
   }
 }
 
+export interface StreamingChatOptions {
+  onRagInfo?: (info: { chunks: number; sources: number }) => void
+}
+
 /**
  * Send a chat completion request (non-streaming)
  * Uses the backend's OpenAI-compatible endpoint
@@ -55,6 +63,9 @@ export async function sendChatCompletion(
       max_tokens: request.maxTokens || 1024,
       temperature: request.temperature || 0.7,
       stream: false,
+      use_rag: request.useRag ?? true,
+      rag_top_k: request.ragTopK ?? 5,
+      rag_min_score: request.ragMinScore ?? 0.6,
     },
   )
 
@@ -67,6 +78,7 @@ export async function sendChatCompletion(
  */
 export async function* streamChatCompletion(
   request: ChatCompletionRequest,
+  options?: StreamingChatOptions,
 ): AsyncGenerator<string, void, unknown> {
   const response = await fetch(`${env.API_BASE_URL}/v1/chat/completions`, {
     method: 'POST',
@@ -79,6 +91,9 @@ export async function* streamChatCompletion(
       max_tokens: request.maxTokens || 1024,
       temperature: request.temperature || 0.7,
       stream: true,
+      use_rag: request.useRag ?? true,
+      rag_top_k: request.ragTopK ?? 5,
+      rag_min_score: request.ragMinScore ?? 0.6,
     }),
   })
 
@@ -87,6 +102,18 @@ export async function* streamChatCompletion(
       .json()
       .catch(() => ({ error: 'Unknown error' }))
     throw new Error(error.message || error.error || 'Chat request failed')
+  }
+
+  // Extract RAG info from headers if callback provided
+  if (options?.onRagInfo) {
+    const ragChunks = response.headers.get('X-Echo-Learn-RAG-Chunks')
+    const ragSources = response.headers.get('X-Echo-Learn-RAG-Sources')
+    if (ragChunks || ragSources) {
+      options.onRagInfo({
+        chunks: parseInt(ragChunks || '0', 10),
+        sources: parseInt(ragSources || '0', 10),
+      })
+    }
   }
 
   // Handle streaming response using Reader

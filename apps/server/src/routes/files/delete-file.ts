@@ -16,12 +16,86 @@ import {
   getFileMetadata,
   deleteFileMetadata,
   removeFileFromUser,
+  getUserFiles,
 } from "@/lib/upstash/redis";
 import { deleteVectorsByFileId } from "@/lib/upstash/vector";
 import { removeFileFromGraph } from "@/lib/graph/graph-merger";
 import { logger } from "@repo/logs";
 
 const deleteRoute = new Hono();
+
+/**
+ * GET /api/files
+ * List all files for a user
+ */
+deleteRoute.get("/", async (c: Context) => {
+  try {
+    const userId = c.req.query("userId");
+
+    if (!userId) {
+      return c.json({ error: "userId query parameter is required" }, 400);
+    }
+
+    logger.info("Listing files for user", { userId });
+
+    const files = await getUserFiles(userId);
+
+    logger.info("Files retrieved", { userId, count: files.length });
+
+    return c.json({
+      files,
+      total: files.length,
+    });
+  } catch (error) {
+    logger.error("Failed to list files", error);
+    return c.json(
+      {
+        error: "Failed to list files",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
+      500,
+    );
+  }
+});
+
+/**
+ * GET /api/files/:fileId
+ * Get details of a specific file
+ */
+deleteRoute.get("/:fileId", async (c: Context) => {
+  try {
+    const fileId = c.req.param("fileId");
+    const userId = c.req.query("userId");
+
+    if (!fileId) {
+      return c.json({ error: "File ID is required" }, 400);
+    }
+
+    logger.info("Getting file details", { fileId, userId });
+
+    const metadata = await getFileMetadata(fileId);
+
+    if (!metadata) {
+      return c.json({ error: "File not found" }, 404);
+    }
+
+    // If userId provided, verify ownership
+    if (userId && metadata.userId !== userId) {
+      return c.json({ error: "Unauthorized" }, 403);
+    }
+
+    return c.json(metadata);
+  } catch (error) {
+    logger.error("Failed to get file details", error);
+    return c.json(
+      {
+        error: "Failed to get file details",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
+      500,
+    );
+  }
+});
 
 /**
  * DELETE /api/files

@@ -8,6 +8,7 @@ import { signedUrlRoute } from "@/routes/upload/signed-url";
 import { ingestRoute } from "@/routes/ingest/process";
 import { deleteRoute } from "@/routes/files/delete-file";
 import { chatRoute } from "@/routes/v1/chat/completions";
+import { usersRoute } from "@/routes/users";
 
 // ** import utils
 import { logger } from "@repo/logs";
@@ -81,6 +82,15 @@ app.route("/api/files", deleteRoute);
 // POST /v1/chat/completions - Chat completion endpoint
 // GET /v1/chat/completions/health - Health check
 app.route("/v1/chat", chatRoute);
+
+// User routes
+// GET /api/users/:userId/profile - Get user profile
+// PATCH /api/users/:userId/profile - Update user profile
+// GET /api/users/:userId/analytics - Get user analytics
+// GET /api/users/:userId/graph - Get user's knowledge graph
+// GET /api/users/:userId/graph/stats - Get graph statistics
+// GET /api/users/:userId/graph/search - Search graph nodes
+app.route("/api/users", usersRoute);
 
 // ===========================================
 // Error Handling

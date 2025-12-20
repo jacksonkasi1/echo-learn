@@ -16,43 +16,44 @@ import { logger } from "@repo/logs";
 import { env } from "../../env";
 
 // Schema for graph generation response
-const graphSchema = z.object({
-  nodes: z.array(
-    z.object({
-      id: z
-        .string()
-        .describe("Lowercase, normalized concept ID using underscores"),
-      label: z.string().describe("Human-readable label for the concept"),
-      type: z
-        .enum([
-          "concept",
-          "process",
-          "detail",
-          "example",
-          "term",
-          "definition",
-          "fact",
-        ])
-        .describe("Type of knowledge node"),
-      description: z
-        .string()
-        .optional()
-        .describe("Brief description of the concept"),
-    }),
-  ),
-  edges: z.array(
-    z.object({
-      source: z.string().describe("Source node ID"),
-      target: z.string().describe("Target node ID"),
-      relation: z
-        .string()
-        .describe(
-          'Relationship type: "is a", "includes", "causes", "requires", "relates to", etc.',
-        ),
-    }),
-  ),
+const graphNodeSchema = z.object({
+  id: z.string().describe("Lowercase, normalized concept ID using underscores"),
+  label: z.string().describe("Human-readable label for the concept"),
+  type: z
+    .enum([
+      "concept",
+      "process",
+      "detail",
+      "example",
+      "term",
+      "definition",
+      "fact",
+    ])
+    .describe("Type of knowledge node"),
+  description: z
+    .string()
+    .optional()
+    .describe("Brief description of the concept"),
 });
 
+const graphEdgeSchema = z.object({
+  source: z.string().describe("Source node ID"),
+  target: z.string().describe("Target node ID"),
+  relation: z
+    .string()
+    .describe(
+      'Relationship type: "is a", "includes", "causes", "requires", "relates to", etc.',
+    ),
+});
+
+const graphSchema = z.object({
+  nodes: z.array(graphNodeSchema),
+  edges: z.array(graphEdgeSchema),
+});
+
+// Types inferred from schema
+type GeneratedNode = z.infer<typeof graphNodeSchema>;
+type GeneratedEdge = z.infer<typeof graphEdgeSchema>;
 type GeneratedGraph = z.infer<typeof graphSchema>;
 
 /**
@@ -69,9 +70,10 @@ export async function generateGraphFromText(
       textLength: text.length,
     });
 
-    const { object } = await generateObject({
+    const result = await generateObject({
       model: google(env.GEMINI_MODEL),
       schema: graphSchema,
+      output: "object",
       prompt: `
         Analyze the following study material and extract a knowledge graph.
 
@@ -96,27 +98,31 @@ export async function generateGraphFromText(
       `,
     });
 
+    const object: GeneratedGraph = result.object;
+
     // Normalize all node IDs to lowercase with underscores
-    const normalizedNodes: GraphNode[] = object.nodes.map((node) => ({
-      id: normalizeId(node.id),
-      label: node.label,
-      type: node.type as GraphNodeType,
-      description: node.description,
-      fileIds: [fileId],
-    }));
+    const normalizedNodes: GraphNode[] = object.nodes.map(
+      (node: GeneratedNode) => ({
+        id: normalizeId(node.id),
+        label: node.label,
+        type: node.type as GraphNodeType,
+        description: node.description,
+        fileIds: [fileId],
+      }),
+    );
 
     // Create a set of valid node IDs for validation
     const validNodeIds = new Set(normalizedNodes.map((n) => n.id));
 
     // Normalize edges and filter out invalid ones
     const normalizedEdges: GraphEdge[] = object.edges
-      .map((edge) => ({
+      .map((edge: GeneratedEdge) => ({
         source: normalizeId(edge.source),
         target: normalizeId(edge.target),
         relation: edge.relation,
         sources: [fileId],
       }))
-      .filter((edge) => {
+      .filter((edge: GraphEdge) => {
         // Only keep edges where both source and target exist
         const valid =
           validNodeIds.has(edge.source) && validNodeIds.has(edge.target);
@@ -249,9 +255,10 @@ export async function extractTopics(text: string): Promise<string[]> {
       topics: z.array(z.string()).describe("List of key topics or concepts"),
     });
 
-    const { object } = await generateObject({
+    const result = await generateObject({
       model: google(env.GEMINI_MODEL),
       schema: topicsSchema,
+      output: "object",
       prompt: `
         Extract the 5-10 most important topics or concepts from this text.
         Return simple, concise topic names.
@@ -261,7 +268,8 @@ export async function extractTopics(text: string): Promise<string[]> {
       `,
     });
 
-    return object.topics.map((topic) => normalizeId(topic));
+    const topics = result.object.topics as string[];
+    return topics.map((topic: string) => normalizeId(topic));
   } catch (error) {
     logger.error("Failed to extract topics", error);
     return [];

@@ -11,8 +11,43 @@ import { Index, type IndexConfig } from "@upstash/vector";
 // ** import utils
 import { logger } from "@repo/logs";
 
-// Upstash Vector metadata type
+// Upstash Vector metadata type - must be flat with primitive values only
 type VectorDbMetadata = Record<string, string | number | boolean | string[]>;
+
+/**
+ * Sanitize metadata for Upstash Vector compatibility
+ * Ensures all values are primitive types (string, number, boolean, or string[])
+ * Removes undefined/null values and converts objects to strings
+ */
+function sanitizeMetadata(metadata: VectorMetadata): VectorDbMetadata {
+  const sanitized: VectorDbMetadata = {};
+
+  for (const [key, value] of Object.entries(metadata)) {
+    if (value === undefined || value === null) {
+      // Skip undefined/null values
+      continue;
+    }
+
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
+      sanitized[key] = value;
+    } else if (Array.isArray(value)) {
+      // Convert array elements to strings if needed
+      sanitized[key] = value.map((v) => String(v));
+    } else if (typeof value === "object") {
+      // Convert objects to JSON strings
+      sanitized[key] = JSON.stringify(value);
+    } else {
+      // Convert anything else to string
+      sanitized[key] = String(value);
+    }
+  }
+
+  return sanitized;
+}
 
 // Initialize Upstash Vector client
 const vectorConfig: IndexConfig = {
@@ -36,11 +71,11 @@ export async function upsertVectors(
   try {
     logger.info(`Upserting ${vectors.length} vectors`);
 
-    // Convert metadata to Upstash-compatible format
+    // Convert and sanitize metadata to Upstash-compatible format
     const formattedVectors = vectors.map((v) => ({
       id: v.id,
       vector: v.vector,
-      metadata: v.metadata as unknown as VectorDbMetadata,
+      metadata: sanitizeMetadata(v.metadata),
     }));
 
     // Upstash Vector supports batch upserts
@@ -117,33 +152,53 @@ export async function deleteVectors(ids: string[]): Promise<void> {
 
 /**
  * Delete all vectors for a specific file
- * Uses filter to find all chunks belonging to a file
+ * Uses pagination to handle Upstash's 1000 result limit
  */
 export async function deleteVectorsByFileId(fileId: string): Promise<number> {
   try {
     logger.info(`Deleting vectors for file: ${fileId}`);
 
-    // First, query to get all vector IDs for this file
     // We use a dummy vector since we're filtering by metadata
-    const dummyVector = new Array(768).fill(0); // Adjust dimension as needed
+    const dummyVector = new Array(768).fill(0);
+    const batchSize = 1000; // Upstash max limit
+    let totalDeleted = 0;
+    let hasMore = true;
 
-    const results = await vectorIndex.query({
-      vector: dummyVector,
-      topK: 10000, // Large number to get all
-      includeMetadata: true,
-      filter: `fileId = '${fileId}'`,
-    });
+    // Paginate through all vectors for this file
+    while (hasMore) {
+      const results = await vectorIndex.query({
+        vector: dummyVector,
+        topK: batchSize,
+        includeMetadata: false, // Don't need metadata for deletion
+        filter: `fileId = '${fileId}'`,
+      });
 
-    if (results.length === 0) {
-      logger.info(`No vectors found for file: ${fileId}`);
-      return 0;
+      if (results.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      const ids = results.map((r) => r.id as string);
+      await vectorIndex.delete(ids);
+      totalDeleted += ids.length;
+
+      logger.info(`Deleted batch of ${ids.length} vectors for file: ${fileId}`);
+
+      // If we got less than batch size, we're done
+      if (results.length < batchSize) {
+        hasMore = false;
+      }
     }
 
-    const ids = results.map((r) => r.id as string);
-    await vectorIndex.delete(ids);
+    if (totalDeleted === 0) {
+      logger.info(`No vectors found for file: ${fileId}`);
+    } else {
+      logger.info(
+        `Deleted total of ${totalDeleted} vectors for file: ${fileId}`,
+      );
+    }
 
-    logger.info(`Deleted ${ids.length} vectors for file: ${fileId}`);
-    return ids.length;
+    return totalDeleted;
   } catch (error) {
     logger.error(`Failed to delete vectors for file: ${fileId}`, error);
     throw error;
@@ -152,30 +207,52 @@ export async function deleteVectorsByFileId(fileId: string): Promise<number> {
 
 /**
  * Delete all vectors for a specific user
+ * Uses pagination to handle Upstash's 1000 result limit
  */
 export async function deleteVectorsByUserId(userId: string): Promise<number> {
   try {
     logger.info(`Deleting all vectors for user: ${userId}`);
 
     const dummyVector = new Array(768).fill(0);
+    const batchSize = 1000; // Upstash max limit
+    let totalDeleted = 0;
+    let hasMore = true;
 
-    const results = await vectorIndex.query({
-      vector: dummyVector,
-      topK: 10000,
-      includeMetadata: true,
-      filter: `userId = '${userId}'`,
-    });
+    // Paginate through all vectors for this user
+    while (hasMore) {
+      const results = await vectorIndex.query({
+        vector: dummyVector,
+        topK: batchSize,
+        includeMetadata: false, // Don't need metadata for deletion
+        filter: `userId = '${userId}'`,
+      });
 
-    if (results.length === 0) {
-      logger.info(`No vectors found for user: ${userId}`);
-      return 0;
+      if (results.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      const ids = results.map((r) => r.id as string);
+      await vectorIndex.delete(ids);
+      totalDeleted += ids.length;
+
+      logger.info(`Deleted batch of ${ids.length} vectors for user: ${userId}`);
+
+      // If we got less than batch size, we're done
+      if (results.length < batchSize) {
+        hasMore = false;
+      }
     }
 
-    const ids = results.map((r) => r.id as string);
-    await vectorIndex.delete(ids);
+    if (totalDeleted === 0) {
+      logger.info(`No vectors found for user: ${userId}`);
+    } else {
+      logger.info(
+        `Deleted total of ${totalDeleted} vectors for user: ${userId}`,
+      );
+    }
 
-    logger.info(`Deleted ${ids.length} vectors for user: ${userId}`);
-    return ids.length;
+    return totalDeleted;
   } catch (error) {
     logger.error(`Failed to delete vectors for user: ${userId}`, error);
     throw error;
