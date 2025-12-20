@@ -102,9 +102,11 @@ This eliminates the need for client-side BM25 implementation!
 
 When creating the index in Upstash Console:
 - **Type:** Hybrid
-- **Dense Embedding Model:** Custom (using Gemini embeddings - 768 dimensions)
+- **Dense Embedding Model:** **BAAI/bge-large-en-v1.5** (Built-in, 1024 dimensions)
 - **Sparse Embedding Model:** BM25 (built-in)
 - **Metric:** COSINE
+
+*Note: We switched from Client-side Gemini embeddings to Upstash Server-side BAAI embeddings for simplicity and performance.*
 
 ### Fusion Algorithms Available
 
@@ -115,65 +117,49 @@ When creating the index in Upstash Console:
 
 - [x] **Upstash Setup**
   - [x] Create new Hybrid index in Upstash Console
-  - [x] Configure Dense: Custom, 768 dimensions (Gemini), COSINE metric
+  - [x] Configure Dense: BAAI/bge-large-en-v1.5 (Upstash Built-in)
   - [x] Configure Sparse: BM25
   - [x] Update environment variables with new index credentials
 
 - [x] **Package: `@repo/storage/vector`** (updated existing)
   - [x] Add hybrid search types (FusionAlgorithm, QueryMode, HybridSearchOptions)
-  - [x] Add `upsertHybridVectors()` for BM25 sparse vector generation
-  - [x] Add `searchHybridVectors()` for combined dense+sparse search
-  - [x] Add `searchWithTextQuery()` for text-based hybrid search
+  - [x] Add `upsertWithEmbedding()` for server-side embedding generation
+  - [x] Add `searchWithEmbedding()` for text-based hybrid search
   - [x] Add support for `fusionAlgorithm` option (RRF/DBSF)
-  - [ ] Add unit tests
 
-- [ ] **Update Ingestion Pipeline**
-  - [ ] Modify `apps/server/src/routes/ingest/process.ts`
-  - [ ] Generate both dense (Gemini) and sparse (text for BM25) vectors
-  - [ ] Use `upsert-data` endpoint for automatic sparse vector generation
-  - [ ] Or manually compute BM25 sparse vectors if needed
+- [x] **Update Ingestion Pipeline**
+  - [x] Modify `apps/server/src/routes/ingest/process.ts`
+  - [x] Removed client-side Gemini embedding generation
+  - [x] Switched to `upsertWithEmbedding` (sends raw text to Upstash)
+  - [x] Upstash handles BAAI embedding + BM25 generation automatically
 
 - [x] **Update Retrieval Pipeline**
   - [x] Modify `packages/rag/src/retrieve-context.ts`
   - [x] Use hybrid query with fusion algorithm
-  - [x] Add option to query dense-only, sparse-only, or hybrid
-  - [x] Add ExtendedRagRetrievalOptions with hybrid config
+  - [x] Switched to `searchWithEmbedding` (sends raw query text)
+  - [x] Removed legacy client-side embedding logic
 
-- [ ] **Migration**
-  - [ ] Create migration script to re-index existing documents
-  - [ ] Test with sample documents before full migration
-  - [ ] Update all existing user data
+- [x] **Migration**
+  - [x] Re-indexed all documents with new BAAI embeddings
+  - [x] Verified hybrid search results with RRF scoring
 
 ### Code Example - Hybrid Query (TypeScript)
 
 ```typescript
-import { Index, FusionAlgorithm } from "@upstash/vector";
+import { searchWithEmbedding } from "@repo/storage";
 
-const index = new Index({
-  url: process.env.UPSTASH_VECTOR_REST_URL,
-  token: process.env.UPSTASH_VECTOR_REST_TOKEN,
-});
-
-// Option 1: Query with text (auto-generates both vectors)
-const results = await index.query({
-  data: "What is the main topic?",
-  topK: 15,
+// New "Upstash Native" Approach
+// We just send the text, Upstash handles BAAI embedding + BM25 + RRF Fusion
+const results = await searchWithEmbedding("What is the main topic?", {
+  topK: 50,
+  fusionAlgorithm: "RRF",
   includeMetadata: true,
-  fusionAlgorithm: FusionAlgorithm.DBSF, // or RRF
+  filter: "userId = 'user_123'"
 });
 
-// Option 2: Query with custom vectors for Cohere re-ranking
-const denseResults = await index.query({
-  data: "What is the main topic?",
-  queryMode: "DENSE",
-  topK: 30,
-});
-
-const sparseResults = await index.query({
-  data: "What is the main topic?",
-  queryMode: "SPARSE", 
-  topK: 30,
-});
+// Returns sorted results based on Reciprocal Rank Fusion of:
+// 1. Semantic Similarity (BAAI/bge-large-en-v1.5)
+// 2. Keyword Matching (BM25)
 
 // Then pass to Cohere for re-ranking
 ```
