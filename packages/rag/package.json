@@ -1,0 +1,35 @@
+{
+  "name": "@repo/rag",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./config": {
+      "import": "./src/config/index.ts",
+      "types": "./src/config/index.ts"
+    },
+    "./embedding": {
+      "import": "./src/embedding/index.ts",
+      "types": "./src/embedding/index.ts"
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/shared": "workspace:*",
+    "@repo/logs": "workspace:*",
+    "@repo/storage": "workspace:*",
+    "@google/generative-ai": "^0.21.0"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "typescript": "^5.7.2"
+  }
+}

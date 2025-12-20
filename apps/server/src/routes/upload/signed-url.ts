@@ -22,7 +22,7 @@ import {
   addFileToUser,
   getFileMetadata,
   updateFileStatus,
-} from "@/lib/upstash/redis";
+} from "@repo/storage";
 import { logger } from "@repo/logs";
 
 // ** import constants

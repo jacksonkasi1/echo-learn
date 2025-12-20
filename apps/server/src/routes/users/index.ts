@@ -10,12 +10,9 @@ import {
   getUserProfile,
   updateUserProfile,
   getKnowledgeGraph,
-} from "@/lib/upstash/redis";
-import {
-  getGraphStats,
-  searchNodes,
-} from "@/lib/graph/graph-merger";
-import { getAnalyticsSummary } from "@/lib/analytics/update-analytics";
+} from "@repo/storage";
+import { getGraphStats, searchNodes } from "@repo/graph";
+import { getAnalyticsSummary } from "@repo/analytics";
 import { logger } from "@repo/logs";
 
 const usersRoute = new Hono();
@@ -51,7 +48,9 @@ usersRoute.get("/:userId/profile", async (c: Context) => {
 
 const profileUpdateSchema = z
   .object({
-    level: z.enum(['beginner', 'intermediate', 'advanced', 'expert']).optional(),
+    level: z
+      .enum(["beginner", "intermediate", "advanced", "expert"])
+      .optional(),
     weakAreas: z.array(z.string()).optional(),
     coveredTopics: z.array(z.string()).optional(),
   })

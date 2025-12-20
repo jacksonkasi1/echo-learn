@@ -12,7 +12,7 @@ export type {
   FileListResponse,
   FileDeleteRequest,
   FileDeleteResponse,
-} from './file.js'
+} from "./file.js";
 
 // OCR types
 export type {
@@ -23,7 +23,7 @@ export type {
   OcrProcessingStatus,
   OcrBatchRequest,
   OcrBatchResult,
-} from './ocr.js'
+} from "./ocr.js";
 
 // Chunk types
 export type {
@@ -38,7 +38,7 @@ export type {
   VectorSearchOptions,
   EmbeddingResult,
   BatchEmbeddingResult,
-} from './chunk.js'
+} from "./chunk.js";
 
 // Graph types
 export type {
@@ -54,7 +54,7 @@ export type {
   GraphVisualizationEdge,
   GraphVisualizationData,
   GraphStats,
-} from './graph.js'
+} from "./graph.js";
 
 // User types
 export type {
@@ -68,4 +68,15 @@ export type {
   SessionSummary,
   UserPreferences,
   AuthenticatedUser,
-} from './user.js'
+} from "./user.js";
+
+// RAG types
+export type {
+  RagConfig,
+  RagRetrievalOptions,
+  RetrievedContext,
+  RetrievedContextWithMetadata,
+  RagStats,
+} from "./rag.js";
+
+export { DEFAULT_RAG_CONFIG } from "./rag.js";
