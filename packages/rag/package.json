@@ -23,10 +23,10 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/shared": "workspace:*",
+    "@google/generative-ai": "^0.21.0",
     "@repo/logs": "workspace:*",
-    "@repo/storage": "workspace:*",
-    "@google/generative-ai": "^0.21.0"
+    "@repo/shared": "workspace:*",
+    "@repo/storage": "workspace:*"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",

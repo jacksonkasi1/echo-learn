@@ -3,26 +3,61 @@ import type {
   RagRetrievalOptions,
   RetrievedContext,
   VectorSearchResult,
+  FusionAlgorithm,
 } from "@repo/shared";
 
 // ** import lib
-import { searchVectors } from "@repo/storage";
+import { searchWithEmbedding } from "@repo/storage";
 
 // ** import utils
 import { mergeRagConfig } from "./config/rag-config.js";
-import { generateQueryEmbedding } from "./embedding/gemini-embed.js";
 import { logger } from "@repo/logs";
+import {
+  selectChunksWithBudget,
+  reorderChunksForContext,
+  type ContextBudgetConfig,
+} from "./context-manager.js";
+
+/**
+ * Extended RAG retrieval options with Upstash hybrid search
+ */
+export interface ExtendedRagRetrievalOptions extends RagRetrievalOptions {
+  /** Fusion algorithm: RRF or DBSF */
+  fusionAlgorithm?: FusionAlgorithm;
+  /** Use context budget manager for dynamic chunk selection */
+  useContextBudget?: boolean;
+  /** Context budget configuration */
+  contextBudgetConfig?: Partial<ContextBudgetConfig>;
+  /** Reorder chunks for better context flow */
+  reorderChunks?: boolean;
+}
+
+/**
+ * Default extended options
+ */
+const DEFAULT_EXTENDED_OPTIONS: Required<
+  Omit<
+    ExtendedRagRetrievalOptions,
+    keyof RagRetrievalOptions | "contextBudgetConfig"
+  >
+> = {
+  fusionAlgorithm: "RRF",
+  useContextBudget: true,
+  reorderChunks: false,
+};
 
 /**
  * Retrieve relevant context from the vector database based on a query
+ * Uses Upstash's built-in hybrid search with BAAI embedding model
  * Used for RAG (Retrieval Augmented Generation) in the chat pipeline
  */
 export async function retrieveContext(
   query: string,
   userId: string,
-  options: RagRetrievalOptions = {},
+  options: ExtendedRagRetrievalOptions = {},
 ): Promise<RetrievedContext> {
   const config = mergeRagConfig(options);
+  const extendedOptions = { ...DEFAULT_EXTENDED_OPTIONS, ...options };
 
   try {
     logger.info("Retrieving context for query", {
@@ -30,25 +65,66 @@ export async function retrieveContext(
       userId,
       topK: config.topK,
       minScore: config.minScore,
+      fusionAlgorithm: extendedOptions.fusionAlgorithm,
+      useContextBudget: extendedOptions.useContextBudget,
     });
 
-    // 1. Generate query embedding using Gemini
-    const queryEmbedding = await generateQueryEmbedding(query);
-
-    // 2. Search Vector DB for similar chunks
-    // Filter by userId to only get chunks from user's uploaded files
-    // Upstash Vector uses string-based filter syntax
+    // Build filter for user-specific content
     const filter = userId ? `userId = '${userId}'` : undefined;
+    const effectiveTopK = extendedOptions.useContextBudget
+      ? config.topK * 2
+      : config.topK;
 
-    const results = await searchVectors(queryEmbedding, {
-      topK: config.topK,
+    // Search with Upstash's built-in hybrid embedding
+    const results = await searchWithEmbedding(query, {
+      topK: effectiveTopK,
       minScore: config.minScore,
       includeMetadata: true,
       filter,
+      fusionAlgorithm: extendedOptions.fusionAlgorithm,
     });
 
-    // 3. Extract content and sources from results
-    const context = extractContextFromResults(results);
+    // Apply context budget management if enabled
+    let context: RetrievedContext;
+
+    if (extendedOptions.useContextBudget && results.length > 0) {
+      const budgetResult = selectChunksWithBudget(
+        results,
+        extendedOptions.contextBudgetConfig,
+      );
+
+      logger.info("Context budget applied", {
+        totalCandidates: budgetResult.stats.totalCandidates,
+        selectedCount: budgetResult.stats.selectedCount,
+        uniqueSources: budgetResult.stats.uniqueSources,
+        estimatedTokens: budgetResult.estimatedTokens,
+        budgetUsed: `${budgetResult.stats.budgetUsed}%`,
+      });
+
+      // Optionally reorder chunks for better context flow
+      if (extendedOptions.reorderChunks) {
+        const reordered = reorderChunksForContext(
+          budgetResult.chunks,
+          budgetResult.sources,
+          budgetResult.scores,
+          results,
+        );
+        context = {
+          chunks: reordered.chunks,
+          sources: [...new Set(reordered.sources)],
+          scores: reordered.scores,
+        };
+      } else {
+        context = {
+          chunks: budgetResult.chunks,
+          sources: budgetResult.sources,
+          scores: budgetResult.scores,
+        };
+      }
+    } else {
+      // Extract without budget management
+      context = extractContextFromResults(results);
+    }
 
     logger.info("Context retrieved successfully", {
       userId,
@@ -73,36 +149,49 @@ export async function retrieveContext(
 export async function retrieveContextWithMetadata(
   query: string,
   userId: string,
-  options: RagRetrievalOptions = {},
+  options: ExtendedRagRetrievalOptions = {},
 ): Promise<{
   context: RetrievedContext;
   results: VectorSearchResult[];
-  queryEmbedding: number[];
+  fusionAlgorithm: FusionAlgorithm;
 }> {
   const config = mergeRagConfig(options);
+  const extendedOptions = { ...DEFAULT_EXTENDED_OPTIONS, ...options };
 
   try {
-    // Generate query embedding
-    const queryEmbedding = await generateQueryEmbedding(query);
-
-    // Filter by userId to only get chunks from user's uploaded files
+    // Build filter for user-specific content
     const filter = userId ? `userId = '${userId}'` : undefined;
 
-    // Search Vector DB
-    const results = await searchVectors(queryEmbedding, {
+    // Search with Upstash's built-in hybrid embedding
+    const results = await searchWithEmbedding(query, {
       topK: config.topK,
       minScore: config.minScore,
       includeMetadata: true,
       filter,
+      fusionAlgorithm: extendedOptions.fusionAlgorithm,
     });
 
-    // Extract context
-    const context = extractContextFromResults(results);
+    // Extract context (with or without budget management)
+    let context: RetrievedContext;
+
+    if (extendedOptions.useContextBudget && results.length > 0) {
+      const budgetResult = selectChunksWithBudget(
+        results,
+        extendedOptions.contextBudgetConfig,
+      );
+      context = {
+        chunks: budgetResult.chunks,
+        sources: budgetResult.sources,
+        scores: budgetResult.scores,
+      };
+    } else {
+      context = extractContextFromResults(results);
+    }
 
     return {
       context,
       results,
-      queryEmbedding,
+      fusionAlgorithm: extendedOptions.fusionAlgorithm,
     };
   } catch (error) {
     logger.error("Failed to retrieve context with metadata", error);
@@ -178,6 +267,7 @@ export async function isQueryRelevantToContent(
     const { chunks, scores } = await retrieveContext(query, userId, {
       topK: 3,
       minScore: threshold,
+      useContextBudget: false,
     });
 
     return chunks.length > 0 && scores.some((score) => score >= threshold);

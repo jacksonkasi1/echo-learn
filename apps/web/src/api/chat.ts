@@ -65,7 +65,7 @@ export async function sendChatCompletion(
       stream: false,
       use_rag: request.useRag ?? true,
       rag_top_k: request.ragTopK ?? 5,
-      rag_min_score: request.ragMinScore ?? 0.6,
+      rag_min_score: request.ragMinScore ?? 0.01, // Lowered for Upstash hybrid RRF scoring
     },
   )
 
@@ -93,7 +93,7 @@ export async function* streamChatCompletion(
       stream: true,
       use_rag: request.useRag ?? true,
       rag_top_k: request.ragTopK ?? 5,
-      rag_min_score: request.ragMinScore ?? 0.6,
+      rag_min_score: request.ragMinScore ?? 0.01, // Lowered for Upstash hybrid RRF scoring
     }),
   })
 

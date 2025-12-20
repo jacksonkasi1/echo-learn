@@ -1,12 +1,13 @@
 // Chat runtime provider using assistant-ui LocalRuntime and our backend API
+import { useCallback, useMemo, useState } from 'react'
 import {
   AssistantRuntimeProvider,
   WebSpeechSynthesisAdapter,
   useLocalRuntime,
 } from '@assistant-ui/react'
-import type { ChatModelAdapter } from '@assistant-ui/react'
 import type { ReactNode } from 'react'
-import { useMemo, useState, useCallback } from 'react'
+
+import type { ChatModelAdapter } from '@assistant-ui/react'
 
 import type { ChatMessage } from '@/api/chat'
 import { streamChatCompletion } from '@/api/chat'
@@ -46,9 +47,10 @@ function createModelAdapter(
           {
             messages: apiMessages,
             userId,
+            maxTokens: 4000,
             useRag: true,
-            ragTopK: 5,
-            ragMinScore: 0.6,
+            ragTopK: 50,
+            ragMinScore: 0.01,
           },
           {
             onRagInfo: (info) => {

@@ -3,7 +3,8 @@ import type { UserProfile } from "@repo/shared";
 
 // ** import lib
 import { google } from "@ai-sdk/google";
-import { generateText, streamText } from "ai";
+import { generateObject, generateText, streamText } from "ai";
+import { z } from "zod";
 
 // ** import utils
 import { logger } from "@repo/logs";
@@ -305,5 +306,101 @@ Response format: ["topic1", "topic2", "topic3"]
   } catch (error) {
     logger.error("Failed to extract topics", error);
     return [];
+  }
+}
+
+/**
+ * Schema definition for structured output
+ */
+export interface StructuredOutputOptions<T> {
+  prompt: string;
+  schema: Record<string, unknown>;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+/**
+ * Generate a structured response using Gemini with JSON schema
+ * Useful for reranking and other tasks requiring structured output
+ */
+export async function generateStructuredResponse<T>(
+  options: StructuredOutputOptions<T>,
+): Promise<T> {
+  const { prompt, schema, temperature = 0.3, maxTokens = 1024 } = options;
+
+  try {
+    logger.info("Generating structured response", {
+      promptLength: prompt.length,
+    });
+
+    // Convert the schema to a Zod schema for validation
+    const zodSchema = convertToZodSchema(schema);
+
+    const result = await generateObject({
+      model: getModel(),
+      prompt,
+      schema: zodSchema,
+      maxTokens,
+      temperature,
+    });
+
+    logger.info("Structured response generated successfully");
+
+    return result.object as T;
+  } catch (error) {
+    logger.error("Failed to generate structured response", error);
+    throw error;
+  }
+}
+
+/**
+ * Convert a simple JSON schema to a Zod schema
+ * Supports basic types: object, array, string, number, boolean
+ */
+function convertToZodSchema(schema: Record<string, unknown>): z.ZodTypeAny {
+  const type = schema.type as string;
+
+  switch (type) {
+    case "object": {
+      const properties = schema.properties as
+        | Record<string, Record<string, unknown>>
+        | undefined;
+      const required = (schema.required as Array<string>) || [];
+
+      if (!properties) {
+        return z.object({});
+      }
+
+      const shape: Record<string, z.ZodTypeAny> = {};
+      for (const [key, prop] of Object.entries(properties)) {
+        let fieldSchema = convertToZodSchema(prop);
+        if (!required.includes(key)) {
+          fieldSchema = fieldSchema.optional();
+        }
+        shape[key] = fieldSchema;
+      }
+
+      return z.object(shape);
+    }
+
+    case "array": {
+      const items = schema.items as Record<string, unknown> | undefined;
+      if (items) {
+        return z.array(convertToZodSchema(items));
+      }
+      return z.array(z.unknown());
+    }
+
+    case "string":
+      return z.string();
+
+    case "number":
+      return z.number();
+
+    case "boolean":
+      return z.boolean();
+
+    default:
+      return z.unknown();
   }
 }

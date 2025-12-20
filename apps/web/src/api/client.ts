@@ -13,7 +13,7 @@ import { env } from '@/config/env'
 // Create axios instance with default configuration
 export const apiClient = axios.create({
   baseURL: env.API_BASE_URL,
-  timeout: 30000, // 30 seconds timeout
+  timeout: 90000, // 90 seconds timeout for long-running operations (OCR, embedding, graph generation)
   headers: {
     'Content-Type': 'application/json',
   },

@@ -6,9 +6,11 @@ export {
   generateQuizQuestion,
   evaluateAnswer,
   extractTopicsFromConversation,
+  generateStructuredResponse,
   type ChatMessage,
   type GenerateOptions,
   type StreamingResult,
+  type StructuredOutputOptions,
 } from "./generate.js";
 
 // ** Export prompt functions

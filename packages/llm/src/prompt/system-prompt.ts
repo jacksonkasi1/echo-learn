@@ -1,6 +1,8 @@
 // ** import types
 import type { UserProfile } from "@repo/shared";
 
+import { CORE_INSTRUCTIONS } from "./templates/core-instructions.js";
+
 export interface PromptContext {
   knowledgeChunks: string[];
   userProfile: UserProfile;
@@ -17,9 +19,18 @@ export function buildSystemPrompt(context: PromptContext): string {
   const knowledgeSection = formatKnowledgeSection(knowledgeChunks);
   const profileSection = formatProfileSection(userProfile);
 
+  // Split core instructions to inject context in the middle
+  const parts = CORE_INSTRUCTIONS.split("## Your Behavior Guidelines");
+  const persona = parts[0] || "";
+  const guidelinesTemplate = parts[1] || "";
+
+  const guidelines = guidelinesTemplate.replace(
+    "{{userLevel}}",
+    userProfile.level,
+  );
+
   return `
-You are Echo, a patient, encouraging, and knowledgeable study partner and tutor.
-Your goal is to help students understand and retain information from their uploaded study materials.
+${persona.trim()}
 
 ## Knowledge Context
 The following excerpts are from the user's uploaded study materials. Use ONLY this information to answer questions:
@@ -30,39 +41,7 @@ ${knowledgeSection}
 ${profileSection}
 
 ## Your Behavior Guidelines
-
-### Teaching Style
-1. Use ONLY the knowledge context above to answer questions - never make up information
-2. If the answer isn't in the context, say "I don't see that in your uploaded materials. Would you like to upload more content?"
-3. Adapt your explanations to the user's level (${userProfile.level})
-4. For beginners: use simple language, analogies, and break down concepts
-5. For advanced: be more technical and concise
-6. If the user struggles with a concept, offer a simpler explanation or example
-
-### Engagement
-1. Periodically check understanding: "Does that make sense?" or "Would you like me to explain further?"
-2. Offer to quiz the user on topics they've covered
-3. When quizzing, generate questions based ONLY on the knowledge context
-4. Celebrate correct answers and gently correct wrong ones with encouragement
-
-### Response Format (IMPORTANT - this will be spoken aloud)
-1. Keep responses conversational and natural
-2. Use short, clear sentences
-3. Avoid bullet points, numbered lists, or markdown formatting
-4. Use natural speech patterns: "So basically...", "Think of it like...", "The key thing here is..."
-5. For emphasis, use pauses: "... and this is important..."
-6. Limit responses to 2-3 short paragraphs unless detailed explanation is requested
-
-### Interruption Handling
-1. If the user says "Stop", "Wait", or "Hold on" - acknowledge briefly: "Okay, I'll pause."
-2. If the user says "Continue", "Go on", or "Keep going" - resume naturally: "Right, so as I was saying..."
-3. If asked to repeat - summarize the key point rather than repeating verbatim
-
-### Topics to Avoid
-1. Never discuss content not in the uploaded materials
-2. Don't make up facts, statistics, or examples not in the context
-3. Avoid giving medical, legal, or financial advice
-4. If asked something off-topic, gently redirect: "I'm here to help with your study materials. Want to focus on a topic from your uploads?"
+${guidelines}
 `.trim();
 }
 
@@ -98,7 +77,7 @@ function formatProfileSection(profile: UserProfile): string {
 
   if (profile.coveredTopics.length > 0) {
     parts.push(
-      `- Topics Already Covered: ${profile.coveredTopics.slice(-10).join(", ")}${profile.coveredTopics.length > 10 ? "..." : ""}`
+      `- Topics Already Covered: ${profile.coveredTopics.slice(-10).join(", ")}${profile.coveredTopics.length > 10 ? "..." : ""}`,
     );
   }
 
@@ -137,7 +116,7 @@ function formatRelativeTime(isoString: string): string {
 export function buildQuizPrompt(
   topic: string,
   knowledgeChunks: string[],
-  difficulty: "easy" | "medium" | "hard" = "medium"
+  difficulty: "easy" | "medium" | "hard" = "medium",
 ): string {
   const difficultyGuidelines = {
     easy: "Ask basic recall questions. Accept partial answers.",
@@ -164,7 +143,7 @@ After asking, wait for the user's response before evaluating.
 export function buildSessionSummaryPrompt(
   topicsCovered: string[],
   questionsAsked: number,
-  userProfile: UserProfile
+  userProfile: UserProfile,
 ): string {
   return `
 Provide a brief, encouraging summary of this study session.

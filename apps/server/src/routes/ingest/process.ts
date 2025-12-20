@@ -17,14 +17,13 @@ import {
   updateFileStatus,
   cacheOcrResult,
   getCachedOcrResult,
-  upsertVectors,
+  upsertWithEmbedding,
 } from "@repo/storage";
 import {
   extractTextWithMistralOCR,
   isSupportedFileType,
   chunkText,
 } from "@repo/ingest";
-import { generateEmbeddingsForChunks } from "@repo/rag";
 import { generateGraphFromChunks, mergeGraphIntoMain } from "@repo/graph";
 import { logger } from "@repo/logs";
 
@@ -76,10 +75,9 @@ ingestRoute.get("/status/:fileId", async (c: Context) => {
  * 1. Fetch file from GCS
  * 2. OCR extraction (Mistral)
  * 3. Text chunking
- * 4. Embedding generation (Gemini)
- * 5. Store in Vector DB (Upstash)
- * 6. Knowledge graph generation (Gemini)
- * 7. Merge graph into user's main graph (Redis)
+ * 4. Store in Vector DB with Upstash native embedding (BAAI model)
+ * 5. Knowledge graph generation (Gemini)
+ * 6. Merge graph into user's main graph (Redis)
  */
 ingestRoute.post("/", zValidator("json", ingestSchema), async (c: Context) => {
   const startTime = Date.now();
@@ -221,30 +219,16 @@ ingestRoute.post("/", zValidator("json", ingestSchema), async (c: Context) => {
       averageChunkSize: chunkingResult.averageChunkSize,
     });
 
-    // 5. Generate Embeddings
-    logger.info("Starting embedding generation", {
+    // 5. Store in Vector DB with Upstash native embedding
+    // Upstash automatically generates embeddings server-side using BAAI model
+    logger.info("Storing chunks with Upstash native embedding", {
       fileId,
       chunkCount: chunkingResult.totalChunks,
     });
 
-    const embeddingsResult = await generateEmbeddingsForChunks(
-      chunkingResult.chunks,
-    );
-
-    logger.info("Embedding generation completed", {
-      fileId,
-      embeddingsGenerated: embeddingsResult.length,
-    });
-
-    // 6. Store in Vector DB
-    logger.info("Storing vectors in database", {
-      fileId,
-      vectorCount: embeddingsResult.length,
-    });
-
-    const vectors = embeddingsResult.map(({ chunk, embedding }) => ({
+    const vectorItems = chunkingResult.chunks.map((chunk) => ({
       id: chunk.id,
-      vector: embedding,
+      data: chunk.content, // Text - Upstash generates embedding automatically
       metadata: {
         content: chunk.content,
         fileId: chunk.fileId,
@@ -255,11 +239,11 @@ ingestRoute.post("/", zValidator("json", ingestSchema), async (c: Context) => {
       } as VectorMetadata,
     }));
 
-    await upsertVectors(vectors);
+    await upsertWithEmbedding(vectorItems);
 
-    logger.info("Vectors stored successfully", {
+    logger.info("Chunks stored successfully with Upstash embedding", {
       fileId,
-      vectorCount: vectors.length,
+      chunkCount: vectorItems.length,
     });
 
     // 7. Generate Knowledge Graph
