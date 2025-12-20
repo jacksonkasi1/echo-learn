@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button'
 import { MarkdownText } from '@/components/assistant-ui/markdown-text'
 import { ToolFallback } from '@/components/assistant-ui/tool-fallback'
 import { TooltipIconButton } from '@/components/assistant-ui/tooltip-icon-button'
+import { ModeToggle } from '@/components/mode-toggle'
 
 import { cn } from '@/lib/utils'
 
@@ -39,12 +40,13 @@ export const Thread: FC = () => {
         ['--thread-max-width' as string]: '44rem',
       }}
     >
-      <div className="absolute right-4 top-4 z-10">
+      <div className="absolute right-4 top-4 z-10 flex flex-col gap-2">
         <Link to="/knowledge">
           <Button variant="ghost" size="icon" title="Knowledge Base">
             <BookOpenIcon />
           </Button>
         </Link>
+        <ModeToggle />
       </div>
 
       <ThreadPrimitive.Viewport
