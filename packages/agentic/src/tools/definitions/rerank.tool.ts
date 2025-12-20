@@ -4,6 +4,8 @@ import { ToolCategory } from "../../types/tools";
 
 // ** import lib
 import { z } from "zod";
+import { rerank } from "ai";
+import { cohere } from "@ai-sdk/cohere";
 
 // ** import utils
 import { logger } from "@repo/logs";
@@ -13,15 +15,8 @@ import { logger } from "@repo/logs";
  */
 const rerankInputSchema = z.object({
   query: z.string().describe("The query to use for re-ranking"),
-  documents: z
-    .array(
-      z.object({
-        text: z.string(),
-        metadata: z.record(z.unknown()).optional(),
-      }),
-    )
-    .describe("Documents to re-rank"),
-  topK: z
+  documents: z.array(z.string()).describe("Array of document texts to re-rank"),
+  topN: z
     .number()
     .int()
     .positive()
@@ -36,86 +31,57 @@ type RerankInput = z.output<typeof rerankInputSchema>;
  */
 export interface RerankOutput {
   rankedDocuments: Array<{
-    text: string;
-    metadata?: Record<string, unknown>;
-    relevanceScore: number;
+    document: string;
+    score: number;
     originalIndex: number;
   }>;
   query: string;
-  method: string;
+  model: string;
   executionTimeMs: number;
 }
 
 /**
- * Simple LLM-based re-ranking using relevance scoring
- * This is a placeholder implementation - can be replaced with Cohere or other services
- */
-async function rerankDocuments(
-  query: string,
-  documents: Array<{ text: string; metadata?: Record<string, unknown> }>,
-  topK: number,
-): Promise<RerankOutput["rankedDocuments"]> {
-  // Simple scoring based on keyword overlap and semantic similarity
-  // In production, replace this with Cohere Rerank API or similar
-  const scored = documents.map((doc, index) => {
-    // Normalize texts
-    const queryLower = query.toLowerCase();
-    const textLower = doc.text.toLowerCase();
-
-    // Simple scoring: keyword matches
-    const queryWords = queryLower.split(/\s+/);
-    const matchCount = queryWords.filter((word) =>
-      textLower.includes(word),
-    ).length;
-
-    // Calculate relevance (0-1)
-    const relevanceScore = Math.min(matchCount / queryWords.length, 1);
-
-    return {
-      text: doc.text,
-      metadata: doc.metadata,
-      relevanceScore,
-      originalIndex: index,
-    };
-  });
-
-  // Sort by relevance score (descending)
-  scored.sort((a, b) => b.relevanceScore - a.relevanceScore);
-
-  // Return top K
-  return scored.slice(0, topK);
-}
-
-/**
  * Rerank Tool
- * Re-ranks retrieved documents based on relevance to the query
- * Improves precision for fact-finding queries
+ *
+ * Uses AI SDK 6's native rerank function with Cohere's rerank-v3.5 model.
+ * Re-ranks retrieved documents based on their semantic relevance to the query.
+ *
+ * Best for:
+ * - Fact-finding queries ("Who is the CEO?")
+ * - Specific questions that need precise answers
+ * - Improving precision after broad retrieval
+ *
+ * Skip for:
+ * - Summary queries (need broad coverage)
+ * - List queries (need all relevant docs)
  */
 export const rerankTool: ToolDefinition<RerankInput, RerankOutput> = {
   name: "rerank_documents",
   description:
-    "Re-rank a list of retrieved documents based on their relevance to a query. " +
-    "Use this tool after retrieving documents to improve result quality, especially for fact-finding queries. " +
-    "Returns the most relevant documents ranked by relevance score.",
+    "Re-rank a list of retrieved documents based on their semantic relevance to a query. " +
+    "Use this tool after search_rag when you need to find the most relevant documents for fact-finding queries. " +
+    "Returns documents sorted by relevance score from Cohere's rerank model.",
 
   inputSchema: rerankInputSchema,
 
   category: ToolCategory.RERANK,
   requiresApproval: false,
-  timeout: 15000, // 15 seconds
-  cost: 5, // Medium cost (re-ranking is more expensive)
+  timeout: 15000,
+  cost: 5,
   cacheable: true,
-  cacheTTL: 300, // 5 minutes
+  cacheTTL: 300,
 
   async execute(input: RerankInput, context: ToolExecutionContext) {
     const startTime = Date.now();
+    const modelName = "rerank-v3.5";
 
     try {
-      logger.info("Executing re-ranking", {
+      logger.info("Executing Cohere re-ranking", {
         userId: context.userId,
-        query: input.query,
+        query: input.query.slice(0, 50),
         documentCount: input.documents.length,
-        topK: input.topK,
+        topN: input.topN,
+        model: modelName,
       });
 
       if (input.documents.length === 0) {
@@ -123,56 +89,70 @@ export const rerankTool: ToolDefinition<RerankInput, RerankOutput> = {
         return {
           rankedDocuments: [],
           query: input.query,
-          method: "none",
+          model: modelName,
           executionTimeMs: Date.now() - startTime,
         };
       }
 
-      // Re-rank documents
-      const rankedDocuments = await rerankDocuments(
-        input.query,
-        input.documents,
-        input.topK,
-      );
+      // Use AI SDK 6 native rerank with Cohere
+      const result = await rerank({
+        model: cohere.reranking(modelName),
+        query: input.query,
+        documents: input.documents,
+        topN: Math.min(input.topN, input.documents.length),
+      });
+
+      // Map ranking results to output format
+      const rankedDocuments = result.ranking.map((item) => ({
+        document: item.document,
+        score: item.score,
+        originalIndex: item.originalIndex,
+      }));
 
       const executionTime = Date.now() - startTime;
 
-      logger.info("Re-ranking completed", {
+      logger.info("Cohere re-ranking completed", {
         userId: context.userId,
         originalCount: input.documents.length,
         rankedCount: rankedDocuments.length,
-        topScore: rankedDocuments[0]?.relevanceScore.toFixed(3) || "N/A",
-        executionTime,
+        topScore: rankedDocuments[0]?.score.toFixed(4) || "N/A",
+        executionTimeMs: executionTime,
       });
 
       return {
         rankedDocuments,
         query: input.query,
-        method: "llm_based",
+        model: modelName,
         executionTimeMs: executionTime,
       };
     } catch (error) {
-      logger.error("Re-ranking failed", {
+      const executionTime = Date.now() - startTime;
+
+      logger.error("Cohere re-ranking failed", {
         error: error instanceof Error ? error.message : "Unknown error",
         userId: context.userId,
-        query: input.query,
+        query: input.query.slice(0, 50),
+        executionTimeMs: executionTime,
       });
 
-      // Return original documents on failure
+      // Fallback: return documents in original order
       const fallbackDocs = input.documents
-        .slice(0, input.topK)
-        .map((doc: any, i: number) => ({
-          text: doc.text,
-          metadata: doc.metadata,
-          relevanceScore: 0,
-          originalIndex: i,
+        .slice(0, input.topN)
+        .map((doc, index) => ({
+          document: doc,
+          score: 0,
+          originalIndex: index,
         }));
+
+      logger.warn("Using fallback: returning documents in original order", {
+        fallbackCount: fallbackDocs.length,
+      });
 
       return {
         rankedDocuments: fallbackDocs,
         query: input.query,
-        method: "fallback",
-        executionTimeMs: Date.now() - startTime,
+        model: "fallback",
+        executionTimeMs: executionTime,
       };
     }
   },
