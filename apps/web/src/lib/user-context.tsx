@@ -1,13 +1,8 @@
 // User context for consistent userId across the app
 // This provides a temporary user ID until proper auth is implemented
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  type ReactNode,
-} from 'react'
+import { createContext, useCallback, useContext, useState } from 'react'
+import type { ReactNode } from 'react'
 
 // Temporary user ID - will be replaced with auth later
 const DEFAULT_USER_ID = 'user_demo_123'

@@ -1,12 +1,13 @@
+import { BookOpen, Database, FileText } from 'lucide-react'
 import { createFileRoute } from '@tanstack/react-router'
+
+import type { RagInfo } from '@/components/MyRuntimeProvider'
 import { Thread } from '@/components/assistant-ui/thread'
 import {
   MyRuntimeProvider,
   useRagInfoState,
-  type RagInfo,
 } from '@/components/MyRuntimeProvider'
 import { useUserId } from '@/lib/user-context'
-import { BookOpen, Database, FileText } from 'lucide-react'
 
 export const Route = createFileRoute('/')({ component: App })
 

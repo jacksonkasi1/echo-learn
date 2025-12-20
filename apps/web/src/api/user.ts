@@ -7,9 +7,9 @@ import { apiClient } from './client'
 export interface UserProfile {
   userId: string
   level: 'beginner' | 'intermediate' | 'advanced' | 'expert'
-  weakAreas: string[]
-  strongAreas: string[]
-  coveredTopics: string[]
+  weakAreas: Array<string>
+  strongAreas: Array<string>
+  coveredTopics: Array<string>
   questionsAnswered: number
   lastInteraction: string
   createdAt: string
@@ -19,8 +19,8 @@ export interface UserProfile {
 export interface UserAnalytics {
   totalQuestions: number
   topicsCovered: number
-  strongAreas: string[]
-  weakAreas: string[]
+  strongAreas: Array<string>
+  weakAreas: Array<string>
   level: string
   lastActive: string | null
 }
@@ -42,13 +42,13 @@ export interface KnowledgeGraph {
     label: string
     type: string
     description?: string
-    fileIds?: string[]
+    fileIds?: Array<string>
   }>
   edges: Array<{
     source: string
     target: string
     relation: string
-    sources: string[]
+    sources: Array<string>
   }>
 }
 
@@ -56,7 +56,9 @@ export interface KnowledgeGraph {
  * Get user profile
  */
 export async function getUserProfile(userId: string): Promise<UserProfile> {
-  const response = await apiClient.get<UserProfile>(`/api/users/${userId}/profile`)
+  const response = await apiClient.get<UserProfile>(
+    `/api/users/${userId}/profile`,
+  )
   return response.data
 }
 
@@ -64,23 +66,33 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
  * Get user analytics summary
  */
 export async function getUserAnalytics(userId: string): Promise<UserAnalytics> {
-  const response = await apiClient.get<UserAnalytics>(`/api/users/${userId}/analytics`)
+  const response = await apiClient.get<UserAnalytics>(
+    `/api/users/${userId}/analytics`,
+  )
   return response.data
 }
 
 /**
  * Get user's knowledge graph
  */
-export async function getKnowledgeGraph(userId: string): Promise<KnowledgeGraph> {
-  const response = await apiClient.get<KnowledgeGraph>(`/api/users/${userId}/graph`)
+export async function getKnowledgeGraph(
+  userId: string,
+): Promise<KnowledgeGraph> {
+  const response = await apiClient.get<KnowledgeGraph>(
+    `/api/users/${userId}/graph`,
+  )
   return response.data
 }
 
 /**
  * Get knowledge graph statistics
  */
-export async function getKnowledgeGraphStats(userId: string): Promise<KnowledgeGraphStats> {
-  const response = await apiClient.get<KnowledgeGraphStats>(`/api/users/${userId}/graph/stats`)
+export async function getKnowledgeGraphStats(
+  userId: string,
+): Promise<KnowledgeGraphStats> {
+  const response = await apiClient.get<KnowledgeGraphStats>(
+    `/api/users/${userId}/graph/stats`,
+  )
   return response.data
 }
 
@@ -91,7 +103,10 @@ export async function updateUserProfile(
   userId: string,
   updates: Partial<UserProfile>,
 ): Promise<UserProfile> {
-  const response = await apiClient.patch<UserProfile>(`/api/users/${userId}/profile`, updates)
+  const response = await apiClient.patch<UserProfile>(
+    `/api/users/${userId}/profile`,
+    updates,
+  )
   return response.data
 }
 
