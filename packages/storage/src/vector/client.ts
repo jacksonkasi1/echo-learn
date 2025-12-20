@@ -243,19 +243,7 @@ export async function searchWithEmbedding(
     logger.info("Searching with Upstash embedding", {
       topK,
       hasFilter: !!filter,
-      filter: filter || "none",
       queryLength: query.length,
-      minScore: minScore ?? "not set",
-      fusionAlgorithm,
-      query: query.substring(0, 100), // Log first 100 chars of query for debugging
-    });
-
-    // First, check index info to debug
-    const indexInfo = await vectorIndex.info();
-    logger.info("Upstash index info", {
-      vectorCount: indexInfo.vectorCount,
-      dimension: indexInfo.dimension,
-      pendingVectorCount: indexInfo.pendingVectorCount,
     });
 
     const results = await vectorIndex.query({
@@ -266,20 +254,10 @@ export async function searchWithEmbedding(
       fusionAlgorithm: FUSION_ALGORITHM_MAP[fusionAlgorithm],
     } as Parameters<typeof vectorIndex.query>[0]);
 
-    logger.info("Raw Upstash query results", {
-      rawResultCount: results.length,
-      rawScores: results.map((r) => ({ id: r.id, score: r.score })).slice(0, 5),
-    });
-
     // Map results to our type and optionally filter by minScore
     const mappedResults: Array<VectorSearchResult> = results
       .filter((result) => {
         if (minScore !== undefined && result.score < minScore) {
-          logger.info("Filtered out result due to minScore", {
-            id: result.id,
-            score: result.score,
-            minScore,
-          });
           return false;
         }
         return true;
@@ -291,7 +269,7 @@ export async function searchWithEmbedding(
       }));
 
     logger.info(
-      `Upstash embedding search found ${mappedResults.length} results after minScore filter`,
+      `Upstash embedding search found ${mappedResults.length} results`,
     );
 
     return mappedResults;
