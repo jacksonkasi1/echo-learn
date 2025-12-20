@@ -1,6 +1,8 @@
+import { Link } from '@tanstack/react-router'
 import {
   ArrowDownIcon,
   ArrowUpIcon,
+  BookOpenIcon,
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -8,7 +10,7 @@ import {
   PencilIcon,
   RefreshCwIcon,
   Square,
-} from "lucide-react";
+} from 'lucide-react'
 
 import {
   ActionBarPrimitive,
@@ -18,25 +20,33 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
-} from "@assistant-ui/react";
+} from '@assistant-ui/react'
 
-import type { FC } from "react";
+import type { FC } from 'react'
 
-import { Button } from "@/components/ui/button";
-import { MarkdownText } from "@/components/assistant-ui/markdown-text";
-import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
-import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import { Button } from '@/components/ui/button'
+import { MarkdownText } from '@/components/assistant-ui/markdown-text'
+import { ToolFallback } from '@/components/assistant-ui/tool-fallback'
+import { TooltipIconButton } from '@/components/assistant-ui/tooltip-icon-button'
 
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils'
 
 export const Thread: FC = () => {
   return (
     <ThreadPrimitive.Root
-      className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
+      className="aui-root aui-thread-root @container relative flex h-full flex-col bg-background"
       style={{
-        ["--thread-max-width" as string]: "44rem",
+        ['--thread-max-width' as string]: '44rem',
       }}
     >
+      <div className="absolute right-4 top-4 z-10">
+        <Link to="/knowledge">
+          <Button variant="ghost" size="icon" title="Knowledge Base">
+            <BookOpenIcon />
+          </Button>
+        </Link>
+      </div>
+
       <ThreadPrimitive.Viewport
         turnAnchor="top"
         className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
@@ -59,8 +69,8 @@ export const Thread: FC = () => {
         </ThreadPrimitive.ViewportFooter>
       </ThreadPrimitive.Viewport>
     </ThreadPrimitive.Root>
-  );
-};
+  )
+}
 
 const ThreadScrollToBottom: FC = () => {
   return (
@@ -73,8 +83,8 @@ const ThreadScrollToBottom: FC = () => {
         <ArrowDownIcon />
       </TooltipIconButton>
     </ThreadPrimitive.ScrollToBottom>
-  );
-};
+  )
+}
 
 const ThreadWelcome: FC = () => {
   return (
@@ -91,8 +101,8 @@ const ThreadWelcome: FC = () => {
       </div>
       <ThreadSuggestions />
     </div>
-  );
-};
+  )
+}
 
 const ThreadSuggestions: FC = () => {
   return (
@@ -100,23 +110,23 @@ const ThreadSuggestions: FC = () => {
       {[
         {
           title: "What's the weather",
-          label: "in San Francisco?",
+          label: 'in San Francisco?',
           action: "What's the weather in San Francisco?",
         },
         {
-          title: "Explain React hooks",
-          label: "like useState and useEffect",
-          action: "Explain React hooks like useState and useEffect",
+          title: 'Explain React hooks',
+          label: 'like useState and useEffect',
+          action: 'Explain React hooks like useState and useEffect',
         },
         {
-          title: "Write a SQL query",
-          label: "to find top customers",
-          action: "Write a SQL query to find top customers",
+          title: 'Write a SQL query',
+          label: 'to find top customers',
+          action: 'Write a SQL query to find top customers',
         },
         {
-          title: "Create a meal plan",
-          label: "for healthy weight loss",
-          action: "Create a meal plan for healthy weight loss",
+          title: 'Create a meal plan',
+          label: 'for healthy weight loss',
+          action: 'Create a meal plan for healthy weight loss',
         },
       ].map((suggestedAction, index) => (
         <div
@@ -145,8 +155,8 @@ const ThreadSuggestions: FC = () => {
         </div>
       ))}
     </div>
-  );
-};
+  )
+}
 
 const Composer: FC = () => {
   return (
@@ -162,8 +172,8 @@ const Composer: FC = () => {
         <ComposerAction />
       </div>
     </ComposerPrimitive.Root>
-  );
-};
+  )
+}
 
 const ComposerAction: FC = () => {
   return (
@@ -198,8 +208,8 @@ const ComposerAction: FC = () => {
         </ComposerPrimitive.Cancel>
       </AssistantIf>
     </div>
-  );
-};
+  )
+}
 
 const MessageError: FC = () => {
   return (
@@ -208,8 +218,8 @@ const MessageError: FC = () => {
         <ErrorPrimitive.Message className="aui-message-error-message line-clamp-2" />
       </ErrorPrimitive.Root>
     </MessagePrimitive.Error>
-  );
-};
+  )
+}
 
 const AssistantMessage: FC = () => {
   return (
@@ -232,8 +242,8 @@ const AssistantMessage: FC = () => {
         <AssistantActionBar />
       </div>
     </MessagePrimitive.Root>
-  );
-};
+  )
+}
 
 const AssistantActionBar: FC = () => {
   return (
@@ -259,8 +269,8 @@ const AssistantActionBar: FC = () => {
         </TooltipIconButton>
       </ActionBarPrimitive.Reload>
     </ActionBarPrimitive.Root>
-  );
-};
+  )
+}
 
 const UserMessage: FC = () => {
   return (
@@ -279,8 +289,8 @@ const UserMessage: FC = () => {
 
       <BranchPicker className="aui-user-branch-picker -mr-1 col-span-full col-start-1 row-start-3 justify-end" />
     </MessagePrimitive.Root>
-  );
-};
+  )
+}
 
 const UserActionBar: FC = () => {
   return (
@@ -295,8 +305,8 @@ const UserActionBar: FC = () => {
         </TooltipIconButton>
       </ActionBarPrimitive.Edit>
     </ActionBarPrimitive.Root>
-  );
-};
+  )
+}
 
 const EditComposer: FC = () => {
   return (
@@ -321,8 +331,8 @@ const EditComposer: FC = () => {
         </div>
       </ComposerPrimitive.Root>
     </MessagePrimitive.Root>
-  );
-};
+  )
+}
 
 const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
   className,
@@ -332,7 +342,7 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
     <BranchPickerPrimitive.Root
       hideWhenSingleBranch
       className={cn(
-        "aui-branch-picker-root -ml-2 mr-2 inline-flex items-center text-muted-foreground text-xs",
+        'aui-branch-picker-root -ml-2 mr-2 inline-flex items-center text-muted-foreground text-xs',
         className,
       )}
       {...rest}
@@ -351,5 +361,5 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
         </TooltipIconButton>
       </BranchPickerPrimitive.Next>
     </BranchPickerPrimitive.Root>
-  );
-};
+  )
+}
