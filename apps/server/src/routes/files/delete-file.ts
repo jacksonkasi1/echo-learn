@@ -17,9 +17,9 @@ import {
   deleteFileMetadata,
   removeFileFromUser,
   getUserFiles,
-} from "@/lib/upstash/redis";
-import { deleteVectorsByFileId } from "@/lib/upstash/vector";
-import { removeFileFromGraph } from "@/lib/graph/graph-merger";
+  deleteVectorsByFileId,
+} from "@repo/storage";
+import { removeFileFromGraph } from "@repo/graph";
 import { logger } from "@repo/logs";
 
 const deleteRoute = new Hono();

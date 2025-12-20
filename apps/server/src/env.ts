@@ -1,9 +1,10 @@
+// ** import lib
 import { createEnv } from "@t3-oss/env-core";
 import { z } from "zod";
 
 export const env = createEnv({
   server: {
-    GEMINI_MODEL: z.string().default("gemini-3-flash-preview"),
+    GEMINI_MODEL: z.string().default("gemini-2.0-flash"),
   },
 
   /**

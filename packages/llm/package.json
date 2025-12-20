@@ -1,0 +1,31 @@
+{
+  "name": "@repo/llm",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./prompt": {
+      "import": "./src/prompt/index.ts",
+      "types": "./src/prompt/index.ts"
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/shared": "workspace:*",
+    "@repo/logs": "workspace:*",
+    "@ai-sdk/google": "^1.2.7",
+    "ai": "^4.3.5"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "typescript": "^5.7.2"
+  }
+}

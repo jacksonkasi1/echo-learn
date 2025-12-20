@@ -1,0 +1,34 @@
+{
+  "name": "@repo/ingest",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./ocr": {
+      "import": "./src/ocr/index.ts",
+      "types": "./src/ocr/index.ts"
+    },
+    "./chunker": {
+      "import": "./src/chunker/index.ts",
+      "types": "./src/chunker/index.ts"
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/shared": "workspace:*",
+    "@repo/logs": "workspace:*",
+    "@mistralai/mistralai": "^1.5.0"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "typescript": "^5.7.2"
+  }
+}
