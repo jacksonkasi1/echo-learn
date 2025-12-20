@@ -1,0 +1,27 @@
+{
+  "name": "@repo/rerank",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@repo/logs": "workspace:*",
+    "@repo/shared": "workspace:*",
+    "@repo/llm": "workspace:*",
+    "cohere-ai": "^7.17.0"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "typescript": "^5.7.2"
+  }
+}
