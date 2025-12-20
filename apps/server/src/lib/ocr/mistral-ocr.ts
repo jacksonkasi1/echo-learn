@@ -227,7 +227,7 @@ function calculateOCRConfidence(markdown: string, response: unknown): number {
   }
 
   // Boost for structured content
-  if (/[\[\s*[xX✓]\s*\]]/.test(markdown)) confidence += 3;
+  if (/\[\s*[xX✓]\s*\]/.test(markdown)) confidence += 3;
   if (/\d{1,4}[-/]\d{1,2}[-/]\d{1,4}/.test(markdown)) confidence += 2;
   if (/\d+\.?\d*\s*(mg|ml|g|kg|cm|mm|m|km)/.test(markdown)) confidence += 3;
 
