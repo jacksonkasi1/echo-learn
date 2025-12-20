@@ -49,7 +49,7 @@ function createModelAdapter(
             userId,
             useRag: true,
             ragTopK: 5,
-            ragMinScore: 0.6,
+            ragMinScore: 0.01,
           },
           {
             onRagInfo: (info) => {
