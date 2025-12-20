@@ -15,7 +15,7 @@ export interface RagConfig {
  */
 export const DEFAULT_RAG_CONFIG: RagConfig = {
   topK: 15,
-  minScore: 0.4,
+  minScore: 0.01, // Lowered for Upstash hybrid RRF scoring (scores are ~0.01-0.02 range)
 };
 
 /**
