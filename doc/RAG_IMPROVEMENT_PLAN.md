@@ -56,11 +56,11 @@ Based on the logs and code analysis, the current RAG system has several limitati
 
 ### TODO List - Phase 1.1
 
-- [ ] Update `completions.ts` - change default `ragTopK` from 5 to 15
-- [ ] Update `completions.ts` - change default `ragMinScore` from 0.6 to 0.4
-- [ ] Update `retrieve-context.ts` - change `DEFAULT_OPTIONS.topK` from 5 to 15
-- [ ] Update `retrieve-context.ts` - change `DEFAULT_OPTIONS.minScore` from 0.7 to 0.4
-- [ ] Add environment variables for RAG configuration
+- [x] Update `completions.ts` - change default `ragTopK` from 5 to 15
+- [x] Update `completions.ts` - change default `ragMinScore` from 0.6 to 0.4
+- [x] Update `retrieve-context.ts` - change `DEFAULT_OPTIONS.topK` from 5 to 15
+- [x] Update `retrieve-context.ts` - change `DEFAULT_OPTIONS.minScore` from 0.7 to 0.4
+- [x] Add environment variables for RAG configuration
 - [ ] Test with existing uploaded documents
 - [ ] Measure baseline improvement in response quality
 
@@ -75,11 +75,11 @@ Instead of fixed `topK`, use a token budget approach.
 
 ### TODO List - Phase 1.2
 
-- [ ] Create new file `packages/rag/src/context-manager.ts`
-- [ ] Implement `ContextBudget` interface with `maxTokens`, `minChunks`, `maxChunks`
-- [ ] Implement `selectChunksWithBudget()` function
-- [ ] Add source diversity logic (ensure chunks from all uploaded files)
-- [ ] Integrate into `retrieve-context.ts`
+- [x] Create new file `packages/rag/src/context-manager.ts`
+- [x] Implement `ContextBudget` interface with `maxTokens`, `minChunks`, `maxChunks`
+- [x] Implement `selectChunksWithBudget()` function
+- [x] Add source diversity logic (ensure chunks from all uploaded files)
+- [x] Integrate into `retrieve-context.ts`
 - [ ] Add unit tests for context manager
 - [ ] Update documentation
 
@@ -113,20 +113,18 @@ When creating the index in Upstash Console:
 
 ### TODO List - Phase 2
 
-- [ ] **Upstash Setup**
-  - [ ] Create new Hybrid index in Upstash Console
-  - [ ] Configure Dense: Custom, 768 dimensions (Gemini), COSINE metric
-  - [ ] Configure Sparse: BM25
-  - [ ] Update environment variables with new index credentials
+- [x] **Upstash Setup**
+  - [x] Create new Hybrid index in Upstash Console
+  - [x] Configure Dense: Custom, 768 dimensions (Gemini), COSINE metric
+  - [x] Configure Sparse: BM25
+  - [x] Update environment variables with new index credentials
 
-- [ ] **Package: `@repo/vector`** (new or update existing)
-  - [ ] Create `packages/vector/src/index.ts` - main exports
-  - [ ] Create `packages/vector/src/client.ts` - Upstash client initialization
-  - [ ] Create `packages/vector/src/types.ts` - TypeScript interfaces
-  - [ ] Create `packages/vector/src/upsert.ts` - upsert with hybrid vectors
-  - [ ] Create `packages/vector/src/query.ts` - query with fusion algorithms
-  - [ ] Create `packages/vector/src/delete.ts` - delete operations
-  - [ ] Add support for `fusionAlgorithm` option (RRF/DBSF)
+- [x] **Package: `@repo/storage/vector`** (updated existing)
+  - [x] Add hybrid search types (FusionAlgorithm, QueryMode, HybridSearchOptions)
+  - [x] Add `upsertHybridVectors()` for BM25 sparse vector generation
+  - [x] Add `searchHybridVectors()` for combined dense+sparse search
+  - [x] Add `searchWithTextQuery()` for text-based hybrid search
+  - [x] Add support for `fusionAlgorithm` option (RRF/DBSF)
   - [ ] Add unit tests
 
 - [ ] **Update Ingestion Pipeline**
@@ -135,11 +133,11 @@ When creating the index in Upstash Console:
   - [ ] Use `upsert-data` endpoint for automatic sparse vector generation
   - [ ] Or manually compute BM25 sparse vectors if needed
 
-- [ ] **Update Retrieval Pipeline**
-  - [ ] Modify `apps/server/src/lib/rag/retrieve-context.ts`
-  - [ ] Use hybrid query with fusion algorithm
-  - [ ] Add option to query dense-only, sparse-only, or hybrid
-  - [ ] Implement custom re-ranking flow (dense + sparse → Cohere)
+- [x] **Update Retrieval Pipeline**
+  - [x] Modify `packages/rag/src/retrieve-context.ts`
+  - [x] Use hybrid query with fusion algorithm
+  - [x] Add option to query dense-only, sparse-only, or hybrid
+  - [x] Add ExtendedRagRetrievalOptions with hybrid config
 
 - [ ] **Migration**
   - [ ] Create migration script to re-index existing documents
@@ -211,26 +209,26 @@ After initial retrieval (hybrid search), use Cohere's re-ranking models to impro
 
 ### TODO List - Phase 3
 
-- [ ] **Package: `@repo/rerank`** (new package)
-  - [ ] Create `packages/rerank/package.json`
-  - [ ] Create `packages/rerank/src/index.ts` - main exports
-  - [ ] Create `packages/rerank/src/types.ts` - interfaces
-  - [ ] Create `packages/rerank/src/cohere.ts` - Cohere implementation
-  - [ ] Create `packages/rerank/src/gemini.ts` - Gemini fallback implementation
-  - [ ] Create `packages/rerank/src/factory.ts` - provider factory
-  - [ ] Add environment variable `RERANK_PROVIDER` (cohere/gemini)
+- [x] **Package: `@repo/rerank`** (new package)
+  - [x] Create `packages/rerank/package.json`
+  - [x] Create `packages/rerank/src/index.ts` - main exports
+  - [x] Create `packages/rerank/src/types.ts` - interfaces
+  - [x] Create `packages/rerank/src/cohere.ts` - Cohere implementation
+  - [x] Create `packages/rerank/src/gemini.ts` - Gemini fallback implementation
+  - [x] Create `packages/rerank/src/factory.ts` - provider factory
+  - [x] Add environment variable `RERANK_PROVIDER` (cohere/gemini)
   - [ ] Add `COHERE_API_KEY` to env template
 
-- [ ] **Cohere Integration**
-  - [ ] Install `cohere-ai` package in `@repo/rerank`
-  - [ ] Implement `cohereRerank()` function
-  - [ ] Handle rate limits and errors gracefully
+- [x] **Cohere Integration**
+  - [x] Install `cohere-ai` package in `@repo/rerank`
+  - [x] Implement `rerankWithCohere()` function
+  - [x] Handle rate limits and errors gracefully
   - [ ] Add retry logic with exponential backoff
-  - [ ] Log rerank latency for monitoring
+  - [x] Log rerank latency for monitoring
 
-- [ ] **Gemini Fallback**
-  - [ ] Implement LLM-based re-ranking as fallback
-  - [ ] Use structured output for relevance scoring
+- [x] **Gemini Fallback**
+  - [x] Implement LLM-based re-ranking as fallback
+  - [x] Use structured output for relevance scoring
   - [ ] Cache results where appropriate
 
 - [ ] **Integration**
