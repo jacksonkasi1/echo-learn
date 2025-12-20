@@ -1,38 +1,59 @@
 // ** import types
-import type { KnowledgeGraph, GraphNode, GraphEdge, GraphNodeType } from '@repo/shared'
+import type {
+  KnowledgeGraph,
+  GraphNode,
+  GraphEdge,
+  GraphNodeType,
+} from "@repo/shared";
 
 // ** import lib
-import { google } from '@ai-sdk/google'
-import { generateObject } from 'ai'
-import { z } from 'zod'
+import { google } from "@ai-sdk/google";
+import { generateObject } from "ai";
+import { z } from "zod";
 
 // ** import utils
-import { logger } from '@repo/logs'
+import { logger } from "@repo/logs";
+import { env } from "../../env";
 
 // Schema for graph generation response
 const graphSchema = z.object({
   nodes: z.array(
     z.object({
-      id: z.string().describe('Lowercase, normalized concept ID using underscores'),
-      label: z.string().describe('Human-readable label for the concept'),
+      id: z
+        .string()
+        .describe("Lowercase, normalized concept ID using underscores"),
+      label: z.string().describe("Human-readable label for the concept"),
       type: z
-        .enum(['concept', 'process', 'detail', 'example', 'term', 'definition', 'fact'])
-        .describe('Type of knowledge node'),
-      description: z.string().optional().describe('Brief description of the concept'),
-    })
+        .enum([
+          "concept",
+          "process",
+          "detail",
+          "example",
+          "term",
+          "definition",
+          "fact",
+        ])
+        .describe("Type of knowledge node"),
+      description: z
+        .string()
+        .optional()
+        .describe("Brief description of the concept"),
+    }),
   ),
   edges: z.array(
     z.object({
-      source: z.string().describe('Source node ID'),
-      target: z.string().describe('Target node ID'),
+      source: z.string().describe("Source node ID"),
+      target: z.string().describe("Target node ID"),
       relation: z
         .string()
-        .describe('Relationship type: "is a", "includes", "causes", "requires", "relates to", etc.'),
-    })
+        .describe(
+          'Relationship type: "is a", "includes", "causes", "requires", "relates to", etc.',
+        ),
+    }),
   ),
-})
+});
 
-type GeneratedGraph = z.infer<typeof graphSchema>
+type GeneratedGraph = z.infer<typeof graphSchema>;
 
 /**
  * Generate a knowledge graph from text using Gemini LLM
@@ -40,16 +61,16 @@ type GeneratedGraph = z.infer<typeof graphSchema>
  */
 export async function generateGraphFromText(
   text: string,
-  fileId: string
+  fileId: string,
 ): Promise<KnowledgeGraph> {
   try {
-    logger.info('Generating knowledge graph from text', {
+    logger.info("Generating knowledge graph from text", {
       fileId,
       textLength: text.length,
-    })
+    });
 
     const { object } = await generateObject({
-      model: google('gemini-1.5-flash'),
+      model: google(env.GEMINI_MODEL),
       schema: graphSchema,
       prompt: `
         Analyze the following study material and extract a knowledge graph.
@@ -73,7 +94,7 @@ export async function generateGraphFromText(
         TEXT:
         ${text}
       `,
-    })
+    });
 
     // Normalize all node IDs to lowercase with underscores
     const normalizedNodes: GraphNode[] = object.nodes.map((node) => ({
@@ -82,10 +103,10 @@ export async function generateGraphFromText(
       type: node.type as GraphNodeType,
       description: node.description,
       fileIds: [fileId],
-    }))
+    }));
 
     // Create a set of valid node IDs for validation
-    const validNodeIds = new Set(normalizedNodes.map((n) => n.id))
+    const validNodeIds = new Set(normalizedNodes.map((n) => n.id));
 
     // Normalize edges and filter out invalid ones
     const normalizedEdges: GraphEdge[] = object.edges
@@ -97,31 +118,32 @@ export async function generateGraphFromText(
       }))
       .filter((edge) => {
         // Only keep edges where both source and target exist
-        const valid = validNodeIds.has(edge.source) && validNodeIds.has(edge.target)
+        const valid =
+          validNodeIds.has(edge.source) && validNodeIds.has(edge.target);
         if (!valid) {
-          logger.warn('Filtered out invalid edge', {
+          logger.warn("Filtered out invalid edge", {
             source: edge.source,
             target: edge.target,
-          })
+          });
         }
-        return valid
-      })
+        return valid;
+      });
 
     const graph: KnowledgeGraph = {
       nodes: normalizedNodes,
       edges: normalizedEdges,
-    }
+    };
 
-    logger.info('Knowledge graph generated successfully', {
+    logger.info("Knowledge graph generated successfully", {
       fileId,
       nodeCount: graph.nodes.length,
       edgeCount: graph.edges.length,
-    })
+    });
 
-    return graph
+    return graph;
   } catch (error) {
-    logger.error('Failed to generate knowledge graph', error)
-    throw error
+    logger.error("Failed to generate knowledge graph", error);
+    throw error;
   }
 }
 
@@ -131,75 +153,77 @@ export async function generateGraphFromText(
  */
 export async function generateGraphFromChunks(
   chunks: Array<{ content: string; id: string }>,
-  fileId: string
+  fileId: string,
 ): Promise<KnowledgeGraph> {
-  logger.info('Generating knowledge graph from chunks', {
+  logger.info("Generating knowledge graph from chunks", {
     fileId,
     chunkCount: chunks.length,
-  })
+  });
 
-  const allNodes: GraphNode[] = []
-  const allEdges: GraphEdge[] = []
+  const allNodes: GraphNode[] = [];
+  const allEdges: GraphEdge[] = [];
 
   // Process chunks in sequence to avoid rate limits
   for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i]!
+    const chunk = chunks[i]!;
 
     try {
-      logger.info(`Processing chunk ${i + 1}/${chunks.length}`)
+      logger.info(`Processing chunk ${i + 1}/${chunks.length}`);
 
-      const chunkGraph = await generateGraphFromText(chunk.content, fileId)
+      const chunkGraph = await generateGraphFromText(chunk.content, fileId);
 
-      allNodes.push(...chunkGraph.nodes)
-      allEdges.push(...chunkGraph.edges)
+      allNodes.push(...chunkGraph.nodes);
+      allEdges.push(...chunkGraph.edges);
 
       // Small delay between chunks to respect rate limits
       if (i < chunks.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 200))
+        await new Promise((resolve) => setTimeout(resolve, 200));
       }
     } catch (error) {
-      logger.error(`Failed to process chunk ${i + 1}`, error)
+      logger.error(`Failed to process chunk ${i + 1}`, error);
       // Continue with other chunks
     }
   }
 
   // Deduplicate nodes by ID, merging fileIds
-  const nodeMap = new Map<string, GraphNode>()
+  const nodeMap = new Map<string, GraphNode>();
   for (const node of allNodes) {
-    const existing = nodeMap.get(node.id)
+    const existing = nodeMap.get(node.id);
     if (existing) {
       // Merge fileIds
-      existing.fileIds = [...new Set([...(existing.fileIds || []), ...(node.fileIds || [])])]
+      existing.fileIds = [
+        ...new Set([...(existing.fileIds || []), ...(node.fileIds || [])]),
+      ];
     } else {
-      nodeMap.set(node.id, node)
+      nodeMap.set(node.id, node);
     }
   }
 
   // Deduplicate edges, merging sources
-  const edgeMap = new Map<string, GraphEdge>()
+  const edgeMap = new Map<string, GraphEdge>();
   for (const edge of allEdges) {
-    const key = `${edge.source}|${edge.target}|${edge.relation}`
-    const existing = edgeMap.get(key)
+    const key = `${edge.source}|${edge.target}|${edge.relation}`;
+    const existing = edgeMap.get(key);
     if (existing) {
       // Merge sources
-      existing.sources = [...new Set([...existing.sources, ...edge.sources])]
+      existing.sources = [...new Set([...existing.sources, ...edge.sources])];
     } else {
-      edgeMap.set(key, edge)
+      edgeMap.set(key, edge);
     }
   }
 
   const combinedGraph: KnowledgeGraph = {
     nodes: Array.from(nodeMap.values()),
     edges: Array.from(edgeMap.values()),
-  }
+  };
 
-  logger.info('Combined knowledge graph created', {
+  logger.info("Combined knowledge graph created", {
     fileId,
     totalNodes: combinedGraph.nodes.length,
     totalEdges: combinedGraph.edges.length,
-  })
+  });
 
-  return combinedGraph
+  return combinedGraph;
 }
 
 /**
@@ -209,10 +233,10 @@ function normalizeId(id: string): string {
   return id
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_]/g, '')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '')
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
 }
 
 /**
@@ -222,11 +246,11 @@ function normalizeId(id: string): string {
 export async function extractTopics(text: string): Promise<string[]> {
   try {
     const topicsSchema = z.object({
-      topics: z.array(z.string()).describe('List of key topics or concepts'),
-    })
+      topics: z.array(z.string()).describe("List of key topics or concepts"),
+    });
 
     const { object } = await generateObject({
-      model: google('gemini-1.5-flash'),
+      model: google(env.GEMINI_MODEL),
       schema: topicsSchema,
       prompt: `
         Extract the 5-10 most important topics or concepts from this text.
@@ -235,12 +259,12 @@ export async function extractTopics(text: string): Promise<string[]> {
         TEXT:
         ${text.slice(0, 2000)}
       `,
-    })
+    });
 
-    return object.topics.map((topic) => normalizeId(topic))
+    return object.topics.map((topic) => normalizeId(topic));
   } catch (error) {
-    logger.error('Failed to extract topics', error)
-    return []
+    logger.error("Failed to extract topics", error);
+    return [];
   }
 }
 
@@ -248,36 +272,36 @@ export async function extractTopics(text: string): Promise<string[]> {
  * Validate a knowledge graph structure
  */
 export function validateGraph(graph: KnowledgeGraph): {
-  valid: boolean
-  errors: string[]
+  valid: boolean;
+  errors: string[];
 } {
-  const errors: string[] = []
-  const nodeIds = new Set(graph.nodes.map((n) => n.id))
+  const errors: string[] = [];
+  const nodeIds = new Set(graph.nodes.map((n) => n.id));
 
   // Check for duplicate node IDs
   if (nodeIds.size !== graph.nodes.length) {
-    errors.push('Duplicate node IDs found')
+    errors.push("Duplicate node IDs found");
   }
 
   // Check that all edges reference valid nodes
   for (const edge of graph.edges) {
     if (!nodeIds.has(edge.source)) {
-      errors.push(`Edge source "${edge.source}" not found in nodes`)
+      errors.push(`Edge source "${edge.source}" not found in nodes`);
     }
     if (!nodeIds.has(edge.target)) {
-      errors.push(`Edge target "${edge.target}" not found in nodes`)
+      errors.push(`Edge target "${edge.target}" not found in nodes`);
     }
   }
 
   // Check for self-referencing edges
   for (const edge of graph.edges) {
     if (edge.source === edge.target) {
-      errors.push(`Self-referencing edge found: ${edge.source}`)
+      errors.push(`Self-referencing edge found: ${edge.source}`);
     }
   }
 
   return {
     valid: errors.length === 0,
     errors,
-  }
+  };
 }

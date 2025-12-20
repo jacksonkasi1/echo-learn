@@ -249,7 +249,7 @@ function extractImagesFromResponse(
   } catch (error) {
     logger.warn(
       "Failed to extract images from OCR response",
-      error instanceof Error ? { error: error.message } : undefined,
+      error instanceof Error ? { error: error.message } : {},
     );
   }
 

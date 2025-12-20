@@ -4,10 +4,10 @@ import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
 
 // ** import routes
-import { uploadRoute } from '@/routes/upload'
-import { ingestRoute } from '@/routes/ingest'
-import { filesRoute } from '@/routes/files'
-import { chatRoute } from '@/routes/v1/chat'
+import { signedUrlRoute } from "@/routes/upload/signed-url";
+import { ingestRoute } from "@/routes/ingest/process";
+import { deleteRoute } from "@/routes/files/delete-file";
+import { chatRoute } from "@/routes/v1/chat/completions";
 
 // ** import utils
 import { logger } from "@repo/logs";
@@ -64,7 +64,7 @@ app.get("/health", (c) => {
 // File upload routes
 // POST /api/upload/signed-url - Get signed URL for file upload
 // POST /api/upload/confirm - Confirm file upload
-app.route("/api/upload", uploadRoute);
+app.route("/api/upload", signedUrlRoute);
 
 // File ingestion routes
 // POST /api/ingest - Process uploaded file through OCR, chunking, embedding, graph pipeline
@@ -75,7 +75,7 @@ app.route("/api/ingest", ingestRoute);
 // GET /api/files - List user's files
 // GET /api/files/:fileId - Get file details
 // DELETE /api/files - Delete file with cascade cleanup
-app.route("/api/files", filesRoute);
+app.route("/api/files", deleteRoute);
 
 // OpenAI-compatible chat completions (for 11Labs integration)
 // POST /v1/chat/completions - Chat completion endpoint
@@ -127,4 +127,7 @@ logger.info(`Starting Echo-Learn server on port ${port}`);
 export default {
   port,
   fetch: app.fetch,
+  // Increase idle timeout to 60 seconds to allow for slow external API calls
+  // (specifically when mock URLs timeout after ~10s in dev mode)
+  idleTimeout: 60,
 };

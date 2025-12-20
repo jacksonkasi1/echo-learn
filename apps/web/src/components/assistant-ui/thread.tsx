@@ -10,6 +10,8 @@ import {
   PencilIcon,
   RefreshCwIcon,
   Square,
+  Volume2Icon,
+  VolumeXIcon,
 } from 'lucide-react'
 
 import {
@@ -270,6 +272,16 @@ const AssistantActionBar: FC = () => {
           <RefreshCwIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Reload>
+      <ActionBarPrimitive.Speak asChild>
+        <TooltipIconButton tooltip="Read aloud">
+          <Volume2Icon />
+        </TooltipIconButton>
+      </ActionBarPrimitive.Speak>
+      <ActionBarPrimitive.StopSpeaking asChild>
+        <TooltipIconButton tooltip="Stop reading">
+          <VolumeXIcon />
+        </TooltipIconButton>
+      </ActionBarPrimitive.StopSpeaking>
     </ActionBarPrimitive.Root>
   )
 }
