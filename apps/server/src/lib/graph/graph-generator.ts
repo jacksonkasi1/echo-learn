@@ -8,7 +8,7 @@ import type {
 
 // ** import lib
 import { google } from "@ai-sdk/google";
-import { generateObject } from "ai";
+import { generateObject, type LanguageModel } from "ai";
 import { z } from "zod";
 
 // ** import utils
@@ -70,8 +70,9 @@ export async function generateGraphFromText(
       textLength: text.length,
     });
 
+    // @ts-ignore
     const result = await generateObject({
-      model: google(env.GEMINI_MODEL),
+      model: google(env.GEMINI_MODEL) as any,
       schema: graphSchema,
       output: "object",
       prompt: `
@@ -255,8 +256,9 @@ export async function extractTopics(text: string): Promise<string[]> {
       topics: z.array(z.string()).describe("List of key topics or concepts"),
     });
 
+    // @ts-ignore
     const result = await generateObject({
-      model: google(env.GEMINI_MODEL),
+      model: google(env.GEMINI_MODEL) as any,
       schema: topicsSchema,
       output: "object",
       prompt: `

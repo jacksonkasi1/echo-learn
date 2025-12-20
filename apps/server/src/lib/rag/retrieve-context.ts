@@ -116,11 +116,15 @@ export async function retrieveContextWithMetadata(
     // Generate query embedding
     const queryEmbedding = await generateQueryEmbedding(query);
 
+    // Filter by userId to only get chunks from user's uploaded files
+    const filter = userId ? `userId = '${userId}'` : undefined;
+
     // Search Vector DB
     const results = await searchVectors(queryEmbedding, {
       topK: opts.topK,
       minScore: opts.minScore,
       includeMetadata: true,
+      filter,
     });
 
     // Extract context

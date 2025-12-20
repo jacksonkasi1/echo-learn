@@ -3,6 +3,7 @@ import type { Context } from "hono";
 
 // ** import lib
 import { Hono } from "hono";
+import { z } from "zod";
 
 // ** import utils
 import {
@@ -48,6 +49,14 @@ usersRoute.get("/:userId/profile", async (c: Context) => {
   }
 });
 
+const profileUpdateSchema = z
+  .object({
+    level: z.enum(['beginner', 'intermediate', 'advanced', 'expert']).optional(),
+    weakAreas: z.array(z.string()).optional(),
+    coveredTopics: z.array(z.string()).optional(),
+  })
+  .strict();
+
 /**
  * PATCH /api/users/:userId/profile
  * Update user profile
@@ -55,7 +64,20 @@ usersRoute.get("/:userId/profile", async (c: Context) => {
 usersRoute.patch("/:userId/profile", async (c: Context) => {
   try {
     const userId = c.req.param("userId");
-    const updates = await c.req.json();
+    const rawUpdates = await c.req.json();
+
+    const parseResult = profileUpdateSchema.safeParse(rawUpdates);
+    if (!parseResult.success) {
+      return c.json(
+        {
+          error: "Invalid profile update payload",
+          details: parseResult.error.format(),
+        },
+        400,
+      );
+    }
+
+    const updates = parseResult.data;
 
     if (!userId) {
       return c.json({ error: "User ID is required" }, 400);

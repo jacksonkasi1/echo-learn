@@ -46,7 +46,7 @@ export async function generateStreamingResponse(
       systemPromptLength: systemPrompt.length,
     });
 
-    const result = streamText({
+    const result = await streamText({
       model: google(env.GEMINI_MODEL),
       system: systemPrompt,
       messages: messages.map((m) => ({

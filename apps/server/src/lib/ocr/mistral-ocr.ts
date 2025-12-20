@@ -56,7 +56,7 @@ export async function extractTextWithMistralOCR(
     });
 
     // Determine if the file is an image or document based on extension
-    const cleanFileName = fileName.split('?')[0];
+    const cleanFileName = fileName.split('?')[0] || fileName;
     const fileExtension = cleanFileName.toLowerCase().split('.').pop();
     const imageExtensions = ['png', 'jpeg', 'jpg', 'avif', 'gif', 'bmp', 'webp', 'tiff', 'tif', 'svg'];
     const documentExtensions = ['pdf', 'pptx', 'docx', 'doc', 'ppt'];
