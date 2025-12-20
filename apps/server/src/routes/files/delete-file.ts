@@ -5,10 +5,13 @@ import type { FileDeleteResponse } from '@repo/shared'
 // ** import lib
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { z } from 'zod'
+
+// ** import schema
+import { deleteFileSchema, type DeleteFileRequest } from '@/schema/files'
 
 // ** import utils
-import { createGCSClient, deleteFile as deleteGCSFile } from '@repo/gcs'
+import { deleteFile as deleteGCSFile } from '@repo/gcs'
+import { gcsClient } from '@/utils'
 import {
   getFileMetadata,
   deleteFileMetadata,
@@ -18,19 +21,7 @@ import { deleteVectorsByFileId } from '@/lib/upstash/vector'
 import { removeFileFromGraph } from '@/lib/graph/graph-merger'
 import { logger } from '@repo/logs'
 
-const filesRoute = new Hono()
-
-// Initialize GCS client
-const gcsClient = createGCSClient({
-  projectId: process.env.GCS_PROJECT_ID!,
-  keyFilename: process.env.GCS_KEY_FILE,
-})
-
-// Request schema for file deletion
-const deleteSchema = z.object({
-  fileId: z.string().min(1, 'File ID is required'),
-  userId: z.string().min(1, 'User ID is required'),
-})
+const deleteRoute = new Hono()
 
 /**
  * DELETE /api/files
@@ -41,12 +32,12 @@ const deleteSchema = z.object({
  * 4. Remove file metadata from Redis
  * 5. Remove file from user's file list
  */
-filesRoute.delete(
+deleteRoute.delete(
   '/',
-  zValidator('json', deleteSchema),
+  zValidator('json', deleteFileSchema),
   async (c: Context) => {
     try {
-      const { fileId, userId } = c.req.valid('json' as never) as z.infer<typeof deleteSchema>
+      const { fileId, userId } = c.req.valid('json' as never) as DeleteFileRequest
 
       logger.info('Starting file deletion', { fileId, userId })
 
@@ -161,70 +152,4 @@ filesRoute.delete(
   }
 )
 
-/**
- * GET /api/files
- * Get all files for a user
- */
-const listSchema = z.object({
-  userId: z.string().min(1, 'User ID is required'),
-})
-
-filesRoute.get(
-  '/',
-  zValidator('query', listSchema),
-  async (c: Context) => {
-    try {
-      const { userId } = c.req.valid('query' as never) as z.infer<typeof listSchema>
-
-      // Import here to avoid circular dependencies
-      const { getUserFiles } = await import('@/lib/upstash/redis')
-
-      logger.info('Fetching user files', { userId })
-
-      const files = await getUserFiles(userId)
-
-      logger.info('User files fetched', { userId, fileCount: files.length })
-
-      return c.json({
-        files,
-        total: files.length,
-      })
-    } catch (error) {
-      logger.error('Failed to fetch user files', error)
-      return c.json({ error: 'Failed to fetch files' }, 500)
-    }
-  }
-)
-
-/**
- * GET /api/files/:fileId
- * Get details of a specific file
- */
-filesRoute.get('/:fileId', async (c: Context) => {
-  try {
-    const fileId = c.req.param('fileId')
-    const userId = c.req.query('userId')
-
-    if (!fileId) {
-      return c.json({ error: 'File ID is required' }, 400)
-    }
-
-    const metadata = await getFileMetadata(fileId)
-
-    if (!metadata) {
-      return c.json({ error: 'File not found' }, 404)
-    }
-
-    // If userId provided, validate ownership
-    if (userId && metadata.userId !== userId) {
-      return c.json({ error: 'Unauthorized' }, 403)
-    }
-
-    return c.json(metadata)
-  } catch (error) {
-    logger.error('Failed to fetch file details', error)
-    return c.json({ error: 'Failed to fetch file details' }, 500)
-  }
-})
-
-export { filesRoute }
+export { deleteRoute }

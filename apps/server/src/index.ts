@@ -4,10 +4,10 @@ import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
 
 // ** import routes
-import { uploadRoute } from "@/routes/upload/get-signed-url";
-import { ingestRoute } from "@/routes/ingest/ingest";
-import { filesRoute } from "@/routes/files/delete";
-import { chatRoute } from "@/routes/v1/chat/completions";
+import { uploadRoute } from '@/routes/upload'
+import { ingestRoute } from '@/routes/ingest'
+import { filesRoute } from '@/routes/files'
+import { chatRoute } from '@/routes/v1/chat'
 
 // ** import utils
 import { logger } from "@repo/logs";

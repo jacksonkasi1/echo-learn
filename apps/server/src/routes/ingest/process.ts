@@ -1,48 +1,35 @@
 // ** import types
-import type { Context } from "hono";
-import type {
-  FileProcessingResult,
-  TextChunk,
-  VectorMetadata,
-} from "@repo/shared";
+import type { Context } from 'hono'
+import type { FileProcessingResult, VectorMetadata } from '@repo/shared'
 
 // ** import lib
-import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
-import { z } from "zod";
+import { Hono } from 'hono'
+import { zValidator } from '@hono/zod-validator'
+
+// ** import schema
+import { ingestSchema, type IngestRequest } from '@/schema/ingest'
 
 // ** import utils
-import { createGCSClient, getSignedDownloadUrl } from "@repo/gcs";
+import { getSignedDownloadUrl } from '@repo/gcs'
+import { gcsClient } from '@/utils'
 import {
   getFileMetadata,
   updateFileStatus,
   cacheOcrResult,
   getCachedOcrResult,
-} from "@/lib/upstash/redis";
+} from '@/lib/upstash/redis'
 import {
   extractTextWithMistralOCR,
   isSupportedFileType,
-} from "@/lib/ocr/mistral-ocr";
-import { chunkText } from "@/lib/chunker/text-chunker";
-import { generateEmbeddingsForChunks } from "@/lib/embedding/gemini-embed";
-import { upsertVectors } from "@/lib/upstash/vector";
-import { generateGraphFromChunks } from "@/lib/graph/graph-generator";
-import { mergeGraphIntoMain } from "@/lib/graph/graph-merger";
-import { logger } from "@repo/logs";
+} from '@/lib/ocr/mistral-ocr'
+import { chunkText } from '@/lib/chunker/text-chunker'
+import { generateEmbeddingsForChunks } from '@/lib/embedding/gemini-embed'
+import { upsertVectors } from '@/lib/upstash/vector'
+import { generateGraphFromChunks } from '@/lib/graph/graph-generator'
+import { mergeGraphIntoMain } from '@/lib/graph/graph-merger'
+import { logger } from '@repo/logs'
 
-const ingestRoute = new Hono();
-
-// Initialize GCS client
-const gcsClient = createGCSClient({
-  projectId: process.env.GCS_PROJECT_ID!,
-  keyFilename: process.env.GCS_KEY_FILE,
-});
-
-// Request schema for ingestion
-const ingestSchema = z.object({
-  fileId: z.string().min(1, "File ID is required"),
-  userId: z.string().min(1, "User ID is required"),
-});
+const ingestRoute = new Hono()
 
 /**
  * POST /api/ingest
@@ -55,15 +42,15 @@ const ingestSchema = z.object({
  * 6. Knowledge graph generation (Gemini)
  * 7. Merge graph into user's main graph (Redis)
  */
-ingestRoute.post("/", zValidator("json", ingestSchema), async (c: Context) => {
-  const startTime = Date.now();
-  let fileId: string = "";
-  let userId: string = "";
+ingestRoute.post('/', zValidator('json', ingestSchema), async (c: Context) => {
+  const startTime = Date.now()
+  let fileId: string = ''
+  let userId: string = ''
 
   try {
-    const body = c.req.valid("json" as never) as z.infer<typeof ingestSchema>;
-    fileId = body.fileId;
-    userId = body.userId;
+    const body = c.req.valid('json' as never) as IngestRequest
+    fileId = body.fileId
+    userId = body.userId
 
     logger.info("Starting ingestion pipeline", { fileId, userId });
 
@@ -306,40 +293,8 @@ ingestRoute.post("/", zValidator("json", ingestSchema), async (c: Context) => {
         fileId,
       },
       500,
-    );
+    )
   }
-});
+})
 
-/**
- * GET /api/ingest/status/:fileId
- * Get the processing status of a file
- */
-ingestRoute.get("/status/:fileId", async (c: Context) => {
-  try {
-    const fileId = c.req.param("fileId");
-
-    if (!fileId) {
-      return c.json({ error: "File ID is required" }, 400);
-    }
-
-    const metadata = await getFileMetadata(fileId);
-
-    if (!metadata) {
-      return c.json({ error: "File not found" }, 404);
-    }
-
-    return c.json({
-      fileId,
-      status: metadata.status,
-      fileName: metadata.fileName,
-      createdAt: metadata.createdAt,
-      processedAt: metadata.processedAt,
-      error: metadata.error,
-    });
-  } catch (error) {
-    logger.error("Error getting file status", error);
-    return c.json({ error: "Failed to get file status" }, 500);
-  }
-});
-
-export { ingestRoute };
+export { ingestRoute }

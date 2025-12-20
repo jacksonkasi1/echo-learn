@@ -1,13 +1,16 @@
 // ** import types
 import type { Context } from 'hono'
+import type { ChatCompletionResponse } from '@/types/chat'
 
 // ** import lib
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { z } from 'zod'
+
+// ** import schema
+import { chatCompletionSchema, type ChatCompletionRequest } from '@/schema/chat'
 
 // ** import utils
-import { retrieveContext, formatContextForPrompt } from '@/lib/rag/retrieve-context'
+import { retrieveContext } from '@/lib/rag/retrieve-context'
 import { getUserProfile } from '@/lib/upstash/redis'
 import { buildSystemPrompt } from '@/lib/prompt/system-prompt'
 import { generateResponse, type ChatMessage } from '@/lib/llm/generate-response'
@@ -15,44 +18,6 @@ import { updateAnalytics, extractAndRecordTopics } from '@/lib/analytics/update-
 import { logger } from '@repo/logs'
 
 const chatRoute = new Hono()
-
-// OpenAI-compatible message schema
-const messageSchema = z.object({
-  role: z.enum(['user', 'assistant', 'system']),
-  content: z.string(),
-})
-
-// OpenAI-compatible request schema
-const chatCompletionSchema = z.object({
-  model: z.string().optional().default('echo-learn-v1'),
-  messages: z.array(messageSchema).min(1),
-  user: z.string().optional(),
-  user_id: z.string().optional(), // 11Labs custom field
-  max_tokens: z.number().optional().default(1024),
-  temperature: z.number().optional().default(0.7),
-  stream: z.boolean().optional().default(false),
-})
-
-// OpenAI-compatible response type
-interface ChatCompletionResponse {
-  id: string
-  object: 'chat.completion'
-  created: number
-  model: string
-  choices: Array<{
-    index: number
-    message: {
-      role: 'assistant'
-      content: string
-    }
-    finish_reason: 'stop' | 'length' | 'content_filter'
-  }>
-  usage: {
-    prompt_tokens: number
-    completion_tokens: number
-    total_tokens: number
-  }
-}
 
 /**
  * POST /v1/chat/completions
@@ -81,7 +46,7 @@ chatRoute.post(
       }
 
       // 2. Parse request
-      const body = c.req.valid('json' as never) as z.infer<typeof chatCompletionSchema>
+      const body = c.req.valid('json' as never) as ChatCompletionRequest
       const messages = body.messages as ChatMessage[]
       const userId = body.user_id || body.user || 'default'
       const maxTokens = body.max_tokens || 1024
