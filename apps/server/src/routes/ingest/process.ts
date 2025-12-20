@@ -1,35 +1,75 @@
 // ** import types
-import type { Context } from 'hono'
-import type { FileProcessingResult, VectorMetadata } from '@repo/shared'
+import type { Context } from "hono";
+import type { FileProcessingResult, VectorMetadata } from "@repo/shared";
 
 // ** import lib
-import { Hono } from 'hono'
-import { zValidator } from '@hono/zod-validator'
+import { Hono } from "hono";
+import { zValidator } from "@hono/zod-validator";
 
 // ** import schema
-import { ingestSchema, type IngestRequest } from '@/schema/ingest'
+import { ingestSchema, type IngestRequest } from "@/schema/ingest";
 
 // ** import utils
-import { getSignedDownloadUrl } from '@repo/gcs'
-import { gcsClient } from '@/utils'
+import { getSignedDownloadUrl } from "@repo/gcs";
+import { gcsClient } from "@/utils";
 import {
   getFileMetadata,
   updateFileStatus,
   cacheOcrResult,
   getCachedOcrResult,
-} from '@/lib/upstash/redis'
+} from "@/lib/upstash/redis";
 import {
   extractTextWithMistralOCR,
   isSupportedFileType,
-} from '@/lib/ocr/mistral-ocr'
-import { chunkText } from '@/lib/chunker/text-chunker'
-import { generateEmbeddingsForChunks } from '@/lib/embedding/gemini-embed'
-import { upsertVectors } from '@/lib/upstash/vector'
-import { generateGraphFromChunks } from '@/lib/graph/graph-generator'
-import { mergeGraphIntoMain } from '@/lib/graph/graph-merger'
-import { logger } from '@repo/logs'
+} from "@/lib/ocr/mistral-ocr";
+import { chunkText } from "@/lib/chunker/text-chunker";
+import { generateEmbeddingsForChunks } from "@/lib/embedding/gemini-embed";
+import { upsertVectors } from "@/lib/upstash/vector";
+import { generateGraphFromChunks } from "@/lib/graph/graph-generator";
+import { mergeGraphIntoMain } from "@/lib/graph/graph-merger";
+import { logger } from "@repo/logs";
 
-const ingestRoute = new Hono()
+const ingestRoute = new Hono();
+
+/**
+ * GET /api/ingest/status/:fileId
+ * Get the processing status of a file
+ */
+ingestRoute.get("/status/:fileId", async (c: Context) => {
+  try {
+    const fileId = c.req.param("fileId");
+
+    if (!fileId) {
+      return c.json({ error: "File ID is required" }, 400);
+    }
+
+    logger.info("Getting ingest status", { fileId });
+
+    const metadata = await getFileMetadata(fileId);
+
+    if (!metadata) {
+      return c.json({ error: "File not found" }, 404);
+    }
+
+    return c.json({
+      fileId: metadata.fileId,
+      status: metadata.status,
+      fileName: metadata.fileName,
+      createdAt: metadata.createdAt,
+      processedAt: metadata.processedAt,
+      error: metadata.error,
+    });
+  } catch (error) {
+    logger.error("Failed to get ingest status", error);
+    return c.json(
+      {
+        error: "Failed to get ingest status",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
+      500,
+    );
+  }
+});
 
 /**
  * POST /api/ingest
@@ -42,15 +82,15 @@ const ingestRoute = new Hono()
  * 6. Knowledge graph generation (Gemini)
  * 7. Merge graph into user's main graph (Redis)
  */
-ingestRoute.post('/', zValidator('json', ingestSchema), async (c: Context) => {
-  const startTime = Date.now()
-  let fileId: string = ''
-  let userId: string = ''
+ingestRoute.post("/", zValidator("json", ingestSchema), async (c: Context) => {
+  const startTime = Date.now();
+  let fileId: string = "";
+  let userId: string = "";
 
   try {
-    const body = c.req.valid('json' as never) as IngestRequest
-    fileId = body.fileId
-    userId = body.userId
+    const body = c.req.valid("json" as never) as IngestRequest;
+    fileId = body.fileId;
+    userId = body.userId;
 
     logger.info("Starting ingestion pipeline", { fileId, userId });
 
@@ -293,8 +333,8 @@ ingestRoute.post('/', zValidator('json', ingestSchema), async (c: Context) => {
         fileId,
       },
       500,
-    )
+    );
   }
-})
+});
 
-export { ingestRoute }
+export { ingestRoute };

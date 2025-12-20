@@ -53,7 +53,7 @@ export async function generateStreamingResponse(
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
-      maxTokens,
+      maxOutputTokens: maxTokens,
       temperature,
     });
 
@@ -94,7 +94,7 @@ export async function generateResponse(
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
-      maxTokens,
+      maxOutputTokens: maxTokens,
       temperature,
     });
 
@@ -183,7 +183,7 @@ Just output the question, nothing else.
     const result = await generateText({
       model: google(env.GEMINI_MODEL),
       prompt,
-      maxTokens: 256,
+      maxOutputTokens: 256,
       temperature: 0.8,
     });
 
@@ -226,7 +226,7 @@ Keep feedback conversational - this will be spoken aloud.
     const result = await generateText({
       model: google(env.GEMINI_MODEL),
       prompt,
-      maxTokens: 256,
+      maxOutputTokens: 256,
       temperature: 0.3,
     });
 
@@ -282,7 +282,7 @@ Response format: ["topic1", "topic2", "topic3"]
     const result = await generateText({
       model: google(env.GEMINI_MODEL),
       prompt,
-      maxTokens: 128,
+      maxOutputTokens: 128,
       temperature: 0.3,
     });
 

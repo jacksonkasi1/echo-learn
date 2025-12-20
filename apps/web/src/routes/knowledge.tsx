@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 
 import type { FileMetadata } from '@/api/files'
+import { useUserId } from '@/lib/user-context'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,9 +49,6 @@ import { ingestApi } from '@/api/ingest'
 export const Route = createFileRoute('/knowledge')({
   component: KnowledgePage,
 })
-
-// Temporary user ID until auth is implemented
-const TEMP_USER_ID = 'user_demo_123'
 
 // Supported file types
 const SUPPORTED_FILE_TYPES = [
@@ -101,6 +99,9 @@ function getFileType(contentType: string): string {
 }
 
 function KnowledgePage() {
+  // Get userId from context
+  const userId = useUserId()
+
   const [files, setFiles] = useState<Array<FileMetadata>>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -116,7 +117,7 @@ function KnowledgePage() {
     try {
       setIsLoading(true)
       setError(null)
-      const response = await filesApi.getUserFiles(TEMP_USER_ID)
+      const response = await filesApi.getUserFiles(userId)
       setFiles(response.files)
     } catch (err) {
       console.error('Failed to fetch files:', err)
@@ -126,7 +127,7 @@ function KnowledgePage() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [userId])
 
   useEffect(() => {
     void fetchFiles()
@@ -149,7 +150,7 @@ function KnowledgePage() {
     try {
       await filesApi.deleteFile({
         fileId,
-        userId: TEMP_USER_ID,
+        userId,
       })
       // Optimistically remove from list
       setFiles((prev) => prev.filter((f) => f.fileId !== fileId))
@@ -227,7 +228,7 @@ function KnowledgePage() {
       // Upload file
       updateFileStatus(file.name, { status: 'uploading', progress: 30 })
 
-      const { fileId } = await filesApi.uploadFile(file, TEMP_USER_ID)
+      const { fileId } = await filesApi.uploadFile(file, userId)
       updateFileStatus(file.name, {
         status: 'processing',
         progress: 60,
@@ -235,7 +236,7 @@ function KnowledgePage() {
       })
 
       // Start ingestion
-      await ingestApi.ingestFile({ fileId, userId: TEMP_USER_ID })
+      await ingestApi.ingestFile({ fileId, userId })
       updateFileStatus(file.name, { progress: 80 })
 
       // Poll for completion
@@ -345,6 +346,41 @@ function KnowledgePage() {
           </Button>
         </div>
 
+        {/* Drag & Drop Area */}
+        <Card
+          className={cn(
+            'border-2 border-dashed transition-colors',
+            isDragging
+              ? 'border-primary bg-primary/5'
+              : 'border-muted-foreground/25 hover:border-primary/50',
+          )}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="mb-4 rounded-full bg-muted p-4">
+              <UploadCloud className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-semibold">Upload Files</h3>
+            <p className="mb-4 mt-2 max-w-xs text-sm text-muted-foreground">
+              Drag and drop your files here or click to browse. Supported
+              formats: PDF, DOCX, TXT, MD.
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={SUPPORTED_EXTENSIONS}
+              onChange={handleFileInputChange}
+              className="hidden"
+            />
+            <Button onClick={() => fileInputRef.current?.click()}>
+              Select Files
+            </Button>
+          </CardContent>
+        </Card>
+
         {/* Error Banner */}
         {error && (
           <div className="rounded-md border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
@@ -411,41 +447,6 @@ function KnowledgePage() {
             ))}
           </div>
         )}
-
-        {/* Drag & Drop Area */}
-        <Card
-          className={cn(
-            'border-2 border-dashed transition-colors',
-            isDragging
-              ? 'border-primary bg-primary/5'
-              : 'border-muted-foreground/25 hover:border-primary/50',
-          )}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <CardContent className="flex flex-col items-center justify-center py-10 text-center">
-            <div className="mb-4 rounded-full bg-muted p-4">
-              <UploadCloud className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-semibold">Upload Files</h3>
-            <p className="mb-4 mt-2 max-w-xs text-sm text-muted-foreground">
-              Drag and drop your files here or click to browse. Supported
-              formats: PDF, DOCX, TXT, MD.
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept={SUPPORTED_EXTENSIONS}
-              onChange={handleFileInputChange}
-              className="hidden"
-            />
-            <Button onClick={() => fileInputRef.current?.click()}>
-              Select Files
-            </Button>
-          </CardContent>
-        </Card>
 
         {/* Search & Table Area */}
         <div className="space-y-4">
