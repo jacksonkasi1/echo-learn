@@ -43,7 +43,17 @@ function createAgent(systemPrompt: string, tools: Record<string, any>) {
     model: google(process.env.GEMINI_MODEL || "gemini-2.0-flash"),
     instructions: systemPrompt,
     tools,
-    stopWhen: stepCountIs(10), // Allow up to 10 steps for complex queries
+    // Use prepareStep to force tool call ONLY on first step
+    // After that, switch to "auto" so model can generate text response
+    prepareStep: ({ stepNumber }) => {
+      if (stepNumber === 0) {
+        // First step: MUST call a tool (usually search_rag)
+        return { toolChoice: "required" as const };
+      }
+      // Subsequent steps: let model decide (call more tools or generate response)
+      return { toolChoice: "auto" as const };
+    },
+    stopWhen: stepCountIs(5), // Reduced from 10 - usually 1-2 tool calls is enough
   });
 }
 
@@ -95,53 +105,55 @@ export async function executeUnifiedAgenticStrategy(
       query: query.slice(0, 50),
     });
 
-    // Build system prompt with tool usage instructions
-    const basePrompt = buildSystemPrompt({
-      knowledgeChunks: [],
-      userProfile,
-    });
+    // Build agentic system prompt - tool call is forced by prepareStep
+    const systemPrompt = `You are Echo, a knowledgeable study partner helping users learn from their uploaded materials.
 
-    const systemPrompt = `${basePrompt}
+## User Profile
+- Level: ${userProfile.level}
+- Questions: ${userProfile.questionsAnswered}
 
-## Your Tools
+## Tools
 
-- **search_rag**: Search the user's uploaded knowledge base
-- **rerank_documents**: Re-rank search results to find the most relevant ones
-- **calculator**: Evaluate mathematical expressions
+- **search_rag**: Search the user's knowledge base for information
+  - Parameter: topK (number of results to retrieve)
+  - Parameter: query (search terms)
+- **rerank_documents**: Re-rank search results (use only if 15+ results need refinement)
+- **calculator**: Evaluate math expressions
 
-## Tool Usage Rules
+## IMPORTANT: Dynamic Search Depth (topK)
 
-**Step 1 - ALWAYS search first:**
-For ANY factual question (Who/What/Where/When/Why/How), call search_rag first.
+Adjust topK based on what the user is asking:
 
-**Step 2 - Rerank for specific questions:**
-After search_rag returns results, use rerank_documents when:
-- User asks about a SPECIFIC person, fact, or detail (e.g., "Who is Jackson?", "What is the price?")
-- You got many results (10+) and need to find the most relevant ones
-- The question needs a precise answer, not a broad summary
+| Query Type | topK | Examples |
+|------------|------|----------|
+| Specific fact | 3-5 | "Who is Jackson?", "What is the price?" |
+| Single concept | 8-10 | "Explain feature X", "How does Y work?" |
+| Moderate depth | 12-15 | "Tell me about the product", "What are the benefits?" |
+| Broad overview | 20-25 | "List all features", "Give me an overview of everything" |
+| Comprehensive | 30-40 | "Train me on this product", "I need to learn everything", "Prepare me for sales" |
 
-**Skip reranking for:**
-- Summary/overview questions ("Summarize the project", "List all features")
-- When search returns few results (<5)
-- Broad exploratory questions
+**Examples:**
+- "Who is the CEO?" → topK=5
+- "What does the product do?" → topK=10
+- "List all the integrations" → topK=20
+- "I'm new, train me on the entire product" → topK=35
+- "Tell me more" / "Go deeper" → Increase topK from previous search
 
-**Example workflow for "Who is Jackson?":**
-1. Call search_rag with query "Jackson"
-2. If results > 5, call rerank_documents with query "Who is Jackson?" and the document texts
-3. Use the top reranked results to answer
+## How to Respond
 
-**ONLY skip search_rag for:**
-- Pure greetings: "hi", "hello"
-- Math: use calculator
-- Questions about yourself (the assistant)
+1. Analyze the query to determine appropriate topK
+2. Call search_rag with good keywords and the right topK
+3. Review the search results carefully
+4. Provide a comprehensive, helpful response based on what you found
+5. For broad topics, structure the response with sections/headings
 
-**MANDATORY**: Never say "I don't have information" without calling search_rag first.
+## Guidelines
 
-## Response Guidelines
-
-- Share actual content from the retrieved/reranked chunks
-- Be specific and substantive
-- Use markdown formatting when helpful`;
+- Use ONLY information from search results - never make things up
+- Be direct and informative - share actual content you found
+- Structure your response clearly (use headings, lists when helpful)
+- If search returns nothing relevant, say so and suggest what the user could upload
+- For training/onboarding requests, provide a structured learning path`;
 
     // Create agent with tools
     const agent = createAgent(systemPrompt, tools);

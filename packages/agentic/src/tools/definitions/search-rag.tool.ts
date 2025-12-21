@@ -18,8 +18,11 @@ const searchRAGInputSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(50)
-    .describe("Number of results to retrieve"),
+    .default(10)
+    .describe(
+      "Number of results to retrieve. Use: 3-5 for specific facts (Who is X?), " +
+        "10-15 for moderate questions, 20-30 for broad topics or 'list all' requests",
+    ),
   minScore: z
     .number()
     .min(0)
@@ -50,7 +53,11 @@ export const searchRAGTool: ToolDefinition<SearchRAGInput, SearchRAGOutput> = {
   name: "search_rag",
   description:
     "Search through the user's uploaded study materials to find relevant information. " +
-    "Use this tool when you need to retrieve specific facts, concepts, or context from the user's knowledge base. " +
+    "IMPORTANT: Adjust topK based on query type:\n" +
+    "- topK=3-5: Simple facts ('Who is X?', 'What is Y?')\n" +
+    "- topK=10-15: Moderate questions ('Explain feature X', 'How does Y work?')\n" +
+    "- topK=20-30: Broad requests ('List all topics', 'Give me an overview', 'Train me on X', 'Tell me everything about Y')\n" +
+    "- topK=30-40: Comprehensive requests ('I want to learn everything', 'Prepare me for a presentation')\n" +
     "Returns relevant text chunks with their sources and relevance scores.",
 
   inputSchema: searchRAGInputSchema,
