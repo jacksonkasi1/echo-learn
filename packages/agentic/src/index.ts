@@ -8,10 +8,13 @@ export type { AgenticRouterConfig } from "./router";
 
 // ** export strategies
 export { executeUnifiedAgenticStrategy, strategyExecutors } from "./strategies";
-export type { StrategyResult } from "./strategies";
+export type { StrategyResult, ModeAwareQueryOptions } from "./strategies";
 
 // ** export tools
 export * from "./tools";
+
+// ** export modes
+export * from "./modes";
 
 // ** export types
 export type {

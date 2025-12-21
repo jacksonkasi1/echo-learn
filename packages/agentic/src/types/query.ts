@@ -1,5 +1,6 @@
 // ** import types
 import type { ChatMessage } from "@repo/llm";
+import type { ChatMode } from "@repo/shared";
 
 /**
  * Query types for classification
@@ -100,6 +101,9 @@ export interface QueryProcessingOptions {
 
   /** Abort signal */
   signal?: AbortSignal;
+
+  /** Chat mode (learn/chat/test) - affects how interactions are tracked */
+  mode?: ChatMode;
 }
 
 /**

@@ -1,5 +1,6 @@
 // ** import types
 import type { ChatMessage } from "@repo/llm";
+import type { ChatMode } from "@repo/shared";
 import type {
   QueryProcessingOptions,
   CostBreakdown,
@@ -11,14 +12,28 @@ import { ToolLoopAgent, stepCountIs } from "ai";
 import { google } from "@ai-sdk/google";
 
 // ** import services
-import { buildSystemPrompt } from "@repo/llm";
 import { getUserProfile } from "@repo/storage";
 
 // ** import tools
 import { getToolRegistry } from "./tools";
 
+// ** import modes
+import {
+  initializeMode,
+  getToolsForMode,
+  shouldRunPassiveAnalysis,
+  type ModeResult,
+} from "./modes";
+
 // ** import utils
 import { logger } from "@repo/logs";
+
+/**
+ * Extended query processing options with mode support
+ */
+export interface ModeAwareQueryOptions extends QueryProcessingOptions {
+  mode?: ChatMode;
+}
 
 /**
  * Strategy execution result
@@ -30,6 +45,8 @@ export interface StrategyResult {
   reranked: boolean;
   toolCalls: ToolCallInfo[];
   cost: CostBreakdown;
+  mode: ChatMode;
+  modeResult?: ModeResult;
 }
 
 /**
@@ -58,60 +75,18 @@ function createAgent(systemPrompt: string, tools: Record<string, any>) {
 }
 
 /**
- * Execute unified agentic strategy
- *
- * This is the ONLY strategy you need! The LLM decides what tools to use.
- *
- * How it works:
- * 1. Give LLM access to ALL tools (search_rag, calculator, etc.)
- * 2. LLM reads the query and decides which tools to call
- * 3. ToolLoopAgent handles the loop automatically
- * 4. LLM generates final response using tool results
+ * Build mode-specific system prompt
  */
-export async function executeUnifiedAgenticStrategy(
-  query: string,
-  messages: ChatMessage[],
-  options: QueryProcessingOptions,
-): Promise<StrategyResult> {
-  const toolCalls: ToolCallInfo[] = [];
-  const chunks: any[] = [];
-  const sources: string[] = [];
-  const cost: CostBreakdown = {
-    classification: 0,
-    retrieval: 0,
-    reranking: 0,
-    generation: 0,
-    tools: 0,
-    total: 0,
-  };
+function buildModeSystemPrompt(
+  mode: ChatMode,
+  modeResult: ModeResult,
+  userProfile: { level: string; questionsAnswered: number },
+): string {
+  // Base prompt from mode
+  const modePrompt = modeResult.systemPrompt;
 
-  try {
-    // Get user profile for personalization
-    const userProfile = await getUserProfile(options.userId);
-
-    // Get ALL tools from registry - LLM will choose which to use
-    // Pass userId so tools can access user-specific data
-    const toolRegistry = getToolRegistry();
-    const tools = toolRegistry.toAISDKTools({
-      userId: options.userId,
-      query: query,
-      queryType: "chat",
-    });
-    const toolNames = Object.keys(tools);
-
-    logger.info("Unified agentic execution", {
-      userId: options.userId,
-      availableTools: toolNames,
-      query: query.slice(0, 50),
-    });
-
-    // Build agentic system prompt - tool call is forced by prepareStep
-    const systemPrompt = `You are Echo, a knowledgeable study partner helping users learn from their uploaded materials.
-
-## User Profile
-- Level: ${userProfile.level}
-- Questions: ${userProfile.questionsAnswered}
-
+  // Common tool documentation
+  const toolsDoc = `
 ## Tools
 
 - **search_rag**: Search the user's knowledge base for information
@@ -119,7 +94,7 @@ export async function executeUnifiedAgenticStrategy(
   - Parameter: query (search terms)
 - **rerank_documents**: Re-rank search results (use only if 15+ results need refinement)
 - **calculator**: Evaluate math expressions
-- **save_learning_progress**: Save user's learning progress to memory (use sparingly!)
+${mode !== "chat" ? "- **save_learning_progress**: Save user's learning progress to memory (use sparingly!)" : ""}
 
 ## IMPORTANT: Dynamic Search Depth (topK)
 
@@ -132,13 +107,6 @@ Adjust topK based on what the user is asking:
 | Moderate depth | 12-15 | "Tell me about the product", "What are the benefits?" |
 | Broad overview | 20-25 | "List all features", "Give me an overview of everything" |
 | Comprehensive | 30-40 | "Train me on this product", "I need to learn everything", "Prepare me for sales" |
-
-**Examples:**
-- "Who is the CEO?" → topK=5
-- "What does the product do?" → topK=10
-- "List all the integrations" → topK=20
-- "I'm new, train me on the entire product" → topK=35
-- "Tell me more" / "Go deeper" → Increase topK from previous search
 
 ## How to Respond
 
@@ -153,8 +121,19 @@ Adjust topK based on what the user is asking:
 - Use ONLY information from search results - never make things up
 - Be direct and informative - share actual content you found
 - Structure your response clearly (use headings, lists when helpful)
-- If search returns nothing relevant, say so and suggest what the user could upload
-- For training/onboarding requests, provide a structured learning path
+- If search returns nothing relevant, say so and suggest what the user could upload`;
+
+  // Mode-specific additions
+  let modeSpecificPrompt = "";
+
+  switch (mode) {
+    case "learn":
+      modeSpecificPrompt = `
+
+## Mode: 🎓 LEARN MODE (Active)
+
+The system automatically tracks learning progress in the background.
+Focus on clear explanations that help build understanding.
 
 ## When to Save Learning Progress (save_learning_progress tool)
 
@@ -173,6 +152,133 @@ Adjust topK based on what the user is asking:
 - Quick lookups ("What's the price?" → no need to save)
 - Casual conversation
 - Single questions about a topic`;
+      break;
+
+    case "chat":
+      modeSpecificPrompt = `
+
+## Mode: 💬 CHAT MODE (Off-Record)
+
+This conversation is NOT being tracked for learning purposes.
+The user wants to explore freely without affecting their learning profile.
+- Answer questions directly and helpfully
+- Don't mention learning progress or suggest saving anything
+- Be conversational and relaxed
+- No learning tools are available in this mode`;
+      break;
+
+    case "test":
+      modeSpecificPrompt = `
+
+## Mode: 📝 TEST MODE (Active Testing)
+
+You are conducting an active quiz/test session.
+- Evaluate answers explicitly (correct, partial, incorrect)
+- Provide clear, constructive feedback
+- Keep the tone encouraging but honest
+
+## Answer Evaluation Guidelines
+- CORRECT: User demonstrates clear understanding of the concept
+- PARTIAL: User shows some understanding but misses key points
+- INCORRECT: User's answer is wrong or shows fundamental misunderstanding
+
+## After Each Answer
+1. State whether the answer is correct, partial, or incorrect
+2. Provide brief explanation of the right answer
+3. Give encouraging feedback
+4. Ask if ready for the next question`;
+      break;
+  }
+
+  return `${modePrompt}
+
+## User Profile
+- Level: ${userProfile.level}
+- Questions answered: ${userProfile.questionsAnswered}
+${toolsDoc}
+${modeSpecificPrompt}`;
+}
+
+/**
+ * Execute unified agentic strategy with mode support
+ *
+ * This is the ONLY strategy you need! The LLM decides what tools to use.
+ *
+ * How it works:
+ * 1. Initialize mode (learn/chat/test)
+ * 2. Give LLM access to mode-appropriate tools
+ * 3. LLM reads the query and decides which tools to call
+ * 4. ToolLoopAgent handles the loop automatically
+ * 5. LLM generates final response using tool results
+ * 6. If in learn mode, trigger background analysis (Phase 2)
+ */
+export async function executeUnifiedAgenticStrategy(
+  query: string,
+  messages: ChatMessage[],
+  options: ModeAwareQueryOptions,
+): Promise<StrategyResult> {
+  const toolCalls: ToolCallInfo[] = [];
+  const chunks: any[] = [];
+  const sources: string[] = [];
+  const cost: CostBreakdown = {
+    classification: 0,
+    retrieval: 0,
+    reranking: 0,
+    generation: 0,
+    tools: 0,
+    total: 0,
+  };
+
+  // Default to learn mode if not specified
+  const mode: ChatMode = options.mode || "learn";
+
+  try {
+    // Get user profile for personalization
+    const userProfile = await getUserProfile(options.userId);
+
+    // Initialize mode handling
+    const modeResult = await initializeMode({
+      userId: options.userId,
+      mode,
+      query,
+      conversationHistory: messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      })),
+    });
+
+    logger.info("Mode initialized", {
+      userId: options.userId,
+      mode,
+      shouldAnalyze:
+        "shouldAnalyze" in modeResult ? modeResult.shouldAnalyze : false,
+    });
+
+    // Get ALL tools from registry - LLM will choose which to use
+    // Pass userId so tools can access user-specific data
+    const toolRegistry = getToolRegistry();
+    const allTools = toolRegistry.toAISDKTools({
+      userId: options.userId,
+      query: query,
+      queryType: mode,
+    });
+
+    // Filter tools based on mode (e.g., chat mode removes learning tools)
+    const tools = getToolsForMode(allTools, mode);
+    const toolNames = Object.keys(tools);
+
+    logger.info("Unified agentic execution", {
+      userId: options.userId,
+      mode,
+      availableTools: toolNames,
+      query: query.slice(0, 50),
+    });
+
+    // Build mode-specific system prompt
+    const systemPrompt = buildModeSystemPrompt(mode, modeResult, {
+      level: userProfile.level,
+      questionsAnswered: userProfile.questionsAnswered,
+    });
 
     // Create agent with tools
     const agent = createAgent(systemPrompt, tools);
@@ -247,6 +353,7 @@ Adjust topK based on what the user is asking:
           cost.total = cost.generation + cost.tools;
 
           logger.info("Execution completed", {
+            mode,
             inputTokens,
             outputTokens,
             totalTokens: usage.totalTokens || 0,
@@ -274,6 +381,14 @@ Adjust topK based on what the user is asking:
       },
     });
 
+    // Note: Background analysis for learn mode will be triggered in Phase 2
+    // by the caller after streaming completes
+    if (shouldRunPassiveAnalysis(mode)) {
+      logger.info("Learn mode - background analysis will be triggered", {
+        userId: options.userId,
+      });
+    }
+
     return {
       stream,
       chunks,
@@ -281,10 +396,13 @@ Adjust topK based on what the user is asking:
       reranked: false,
       toolCalls,
       cost,
+      mode,
+      modeResult,
     };
   } catch (error) {
     logger.error("Unified agentic strategy failed", {
       error: error instanceof Error ? error.message : "Unknown error",
+      mode,
     });
     throw error;
   }

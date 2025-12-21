@@ -1,5 +1,46 @@
 // ** Export all shared types
 
+// Learning types (new Smart Memory system)
+export type {
+  ChatMode,
+  LearningSignalType,
+  LearningSignal,
+  ConceptMastery,
+  MasteryUpdate,
+  LearningRelationType,
+  LearningEdge,
+  MasterySummary,
+  ConceptWithEffectiveMastery,
+  QuestionDifficulty,
+  QuestionType,
+  AnswerEvaluation,
+  ModePromptConfig,
+  FollowUpSuggestion,
+  LearningChatResponse,
+} from "./learning.js";
+
+export { DEFAULT_CONCEPT_MASTERY, MODE_PROMPTS } from "./learning.js";
+
+// Test session types
+export type {
+  TestSessionStatus,
+  TestQuestion,
+  TestResult,
+  TestSession,
+  TestSessionSummary,
+  CreateTestSessionInput,
+  AnswerQuestionInput,
+  GenerateQuestionRequest,
+  GenerateQuestionResult,
+  TestSessionHistoryEntry,
+} from "./test-session.js";
+
+export {
+  DEFAULT_TEST_SESSION_CONFIG,
+  TEST_MODE_MASTERY_CHANGES,
+  SESSION_SCORE_THRESHOLDS,
+} from "./test-session.js";
+
 // File types
 export type {
   FileStatus,

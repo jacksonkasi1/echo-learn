@@ -102,17 +102,20 @@ completionsRoute.post("/completions", async (c: Context) => {
     });
 
     // Convert messages to ChatMessage format
-    const messages: ChatMessage[] = body.messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    // Filter out invalid roles (function, tool) that aren't supported
+    const messages: ChatMessage[] = body.messages
+      .filter((m) => ["user", "assistant", "system"].includes(m.role))
+      .map((m) => ({
+        role: m.role as "user" | "assistant" | "system",
+        content: m.content,
+      }));
 
     // Process through ElevenLabs handler
     const result = await processElevenLabsCompletion({
       userId,
       messages,
-      maxTokens: body.max_tokens,
-      temperature: body.temperature,
+      maxTokens: body.max_tokens ?? 1024,
+      temperature: body.temperature ?? 0.7,
       useBufferWords: true,
       systemTools: body.tools,
       conversationId,

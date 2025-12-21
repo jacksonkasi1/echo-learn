@@ -1,7 +1,8 @@
 // ** import types
 import type { ChatCompletionRequest } from "@/schema/chat";
 import type { ChatMessage } from "@repo/llm";
-import type { QueryProcessingOptions } from "@repo/agentic";
+import type { ModeAwareQueryOptions } from "@repo/agentic";
+import type { ChatMode } from "@repo/shared";
 
 // ** import lib
 import { generateStreamingResponse, buildSystemPrompt } from "@repo/llm";
@@ -20,6 +21,7 @@ export interface CompletionResult {
   stream: ReadableStream<Uint8Array>;
   knowledgeChunks: string[];
   retrievedSources: string[];
+  mode: ChatMode;
 }
 
 /**
@@ -135,6 +137,7 @@ export async function processCompletion(
   const enableReranking = (body as any).enable_reranking || false;
   const enableMultiStep = (body as any).enable_multi_step !== false; // Default true
   const maxIterations = (body as any).max_iterations || 5;
+  const mode: ChatMode = body.mode || "learn"; // Default to learn mode
 
   logger.info("Processing chat request", {
     userId,
@@ -142,6 +145,7 @@ export async function processCompletion(
     useRag,
     enableAgentic,
     enableReranking,
+    mode,
   });
 
   // Extract user message
@@ -164,6 +168,7 @@ export async function processCompletion(
         enableReranking,
         enableMultiStep,
         maxIterations,
+        mode,
       },
       startTime,
     );
@@ -180,6 +185,7 @@ export async function processCompletion(
       ragTopK,
       ragMinScore,
       useRag,
+      mode,
     },
     startTime,
   );
@@ -200,12 +206,14 @@ async function processAgenticCompletion(
     enableReranking: boolean;
     enableMultiStep: boolean;
     maxIterations: number;
+    mode: ChatMode;
   },
   startTime: number,
 ): Promise<CompletionResult> {
   try {
     logger.info("Using agentic router for completion", {
       userId,
+      mode: options.mode,
       enableReranking: options.enableReranking,
       enableMultiStep: options.enableMultiStep,
     });
@@ -213,8 +221,8 @@ async function processAgenticCompletion(
     // Get agentic router
     const router = getAgenticRouter();
 
-    // Build processing options
-    const processingOptions: QueryProcessingOptions = {
+    // Build processing options with mode
+    const processingOptions: ModeAwareQueryOptions = {
       userId,
       messages,
       useRag: true,
@@ -225,6 +233,7 @@ async function processAgenticCompletion(
       enableReranking: options.enableReranking,
       enableMultiStep: options.enableMultiStep,
       maxIterations: options.maxIterations,
+      mode: options.mode,
     };
 
     // Process query with agentic router
@@ -232,6 +241,7 @@ async function processAgenticCompletion(
 
     logger.info("Agentic processing completed", {
       userId,
+      mode: options.mode,
       queryType: result.classification.type,
       strategy: result.strategy,
       chunksRetrieved: result.retrievedChunks.length,
@@ -243,10 +253,19 @@ async function processAgenticCompletion(
     // Wrap stream with minimal callbacks
     // NOTE: Analytics/learning progress is now handled by the agent via save_learning_progress tool
     // This removes automatic overhead on every request - agent decides when to save
+    // In chat mode, we skip profile updates to maintain "off-record" behavior
     const wrappedStream = createCompletionStream(
       streamToAsyncIterable(result.stream!),
       {
         onComplete: (_fullResponse) => {
+          // Skip profile updates in chat mode (off-record)
+          if (options.mode === "chat") {
+            logger.info("Chat mode - skipping profile update (off-record)", {
+              userId,
+            });
+            return;
+          }
+
           // Only update last interaction timestamp (lightweight, ~5ms)
           // Note: fullResponse available if needed for debugging
           updateUserProfile(userId, {
@@ -254,6 +273,11 @@ async function processAgenticCompletion(
           }).catch((err) => {
             logger.error("Failed to update user profile", err);
           });
+
+          // TODO (Phase 2): Trigger background analysis for learn mode
+          // if (options.mode === "learn") {
+          //   analyzeInteractionAsync(userId, userMessage, _fullResponse, messages);
+          // }
         },
         onError: (error) => {
           logger.error("Completion stream error", error);
@@ -265,6 +289,7 @@ async function processAgenticCompletion(
       stream: wrappedStream,
       knowledgeChunks: result.retrievedChunks,
       retrievedSources: result.retrievedSources,
+      mode: options.mode,
     };
   } catch (error) {
     logger.error("Agentic completion failed, falling back to legacy", {
@@ -282,6 +307,7 @@ async function processAgenticCompletion(
         ragTopK: options.ragTopK,
         ragMinScore: options.ragMinScore,
         useRag: true,
+        mode: options.mode,
       },
       startTime,
     );
@@ -301,6 +327,7 @@ async function processLegacyCompletion(
     ragTopK: number;
     ragMinScore: number;
     useRag: boolean;
+    mode: ChatMode;
   },
   startTime: number,
 ): Promise<CompletionResult> {
@@ -369,6 +396,7 @@ async function processLegacyCompletion(
     stream,
     knowledgeChunks,
     retrievedSources,
+    mode: options.mode,
   };
 }
 
