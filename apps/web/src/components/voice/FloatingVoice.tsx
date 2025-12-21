@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Loader2, Mic, X } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 
 import { useVoiceConversation } from './VoiceConversationProvider'
 import { Orb } from '@/components/ui/orb'
@@ -93,34 +93,6 @@ export function FloatingVoice() {
     return null
   }
 
-  if (status === 'disconnected' && !isLoading) {
-    return (
-      <div className="fixed bottom-6 right-6 z-50">
-        <Button
-          onClick={handleStart}
-          size="lg"
-          className="rounded-full h-14 w-14 shadow-lg hover:shadow-xl transition-all"
-          disabled={isLoading}
-        >
-          <Mic className="h-6 w-6" />
-          <span className="sr-only">Start Voice Chat</span>
-        </Button>
-      </div>
-    )
-  }
-
-  // Show loading state
-  if (isLoading || status === 'connecting') {
-    return (
-      <div className="fixed bottom-6 right-6 z-50">
-        <Button size="lg" className="rounded-full h-14 w-14 shadow-lg" disabled>
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <span className="sr-only">Connecting...</span>
-        </Button>
-      </div>
-    )
-  }
-
   return (
     <AnimatePresence>
       <motion.div
@@ -131,7 +103,7 @@ export function FloatingVoice() {
           'fixed z-50 transition-all duration-300 ease-in-out bg-background/80 backdrop-blur-md border rounded-2xl shadow-2xl overflow-hidden',
           isExpanded
             ? 'bottom-6 right-6 w-80 h-96'
-            : 'bottom-6 right-6 w-20 h-20 rounded-full',
+            : 'bottom-6 right-6 w-16 h-16 rounded-full',
         )}
       >
         {/* Controls Overlay */}
@@ -172,10 +144,27 @@ export function FloatingVoice() {
 
         {/* Orb Container */}
         <div
-          className="w-full h-full cursor-pointer"
-          onClick={!isExpanded ? toggleExpand : undefined}
+          className="w-full h-full cursor-pointer relative"
+          onClick={() => {
+            if (status === 'disconnected') {
+              handleStart()
+            } else {
+              toggleExpand()
+            }
+          }}
         >
-          <Orb agentState={getAgentState()} className="w-full h-full" />
+          <Orb
+            agentState={getAgentState()}
+            className="w-full h-full"
+            colors={['#FEF08A', '#FDE047']}
+          />
+
+          {/* Loading Overlay */}
+          {(isLoading || status === 'connecting') && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-20">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          )}
         </div>
 
         {/* Footer controls when expanded */}
