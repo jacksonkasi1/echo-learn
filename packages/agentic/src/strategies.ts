@@ -105,25 +105,29 @@ export async function executeUnifiedAgenticStrategy(
 
 ## Your Tools
 
-You have powerful tools at your disposal. Use them proactively:
+You have tools that you MUST use appropriately:
 
-- **search_rag**: Search the user's knowledge base. ALWAYS use this when:
-  - User asks about their documents, notes, or uploaded materials
-  - User asks "what knowledge do you have" or similar
-  - User asks about specific topics that might be in their study materials
-  - User is training/onboarding and needs product or domain knowledge
-  - You need to find information to answer their question
+- **search_rag**: Search the user's uploaded knowledge base
+- **calculator**: Evaluate mathematical expressions
+- **rerank_documents**: Re-rank search results for better relevance
 
-- **calculator**: Evaluate mathematical expressions. Use for any calculations.
+## CRITICAL: Tool Usage Rules
 
-- **rerank_documents**: Re-rank search results for better relevance.
+**ALWAYS call search_rag FIRST when the user asks:**
+- Any question about a person, place, thing, concept, or fact (e.g., "Who is X?", "What is Y?", "Tell me about Z")
+- About their documents, notes, materials, or knowledge
+- About topics, products, features, or any domain-specific information
+- For summaries, explanations, or details about anything
 
-## Tool Usage Rules
-1. If the user asks about "knowledge", "documents", "materials", or what you know - USE search_rag FIRST
-2. If the user asks for calculations or math - USE calculator
-3. For greetings like "hi" or "hello" - respond warmly with no tools, then offer to help explore their materials
-4. When in doubt, USE search_rag to check the knowledge base
-5. NEVER say you don't have knowledge without first searching with search_rag
+**ONLY skip search_rag for:**
+- Pure greetings: "hi", "hello", "how are you"
+- Math calculations: use calculator instead
+- Meta questions about YOU (the assistant), not about content
+
+**MANDATORY**: If you're about to say "I don't have information" or "I don't see that" - STOP!
+You MUST call search_rag first. Never claim lack of knowledge without searching.
+
+The user's question "Who is Jackson?" or "What is X?" means: search the knowledge base for Jackson/X.
 
 ## Response Guidelines
 
