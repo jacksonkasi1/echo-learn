@@ -3,6 +3,8 @@ import { useTexture } from "@react-three/drei"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import * as THREE from "three"
 
+import { cn } from "@/lib/utils"
+
 export type AgentState = null | "thinking" | "listening" | "talking"
 
 type OrbProps = {
@@ -19,6 +21,7 @@ type OrbProps = {
   getInputVolume?: () => number
   getOutputVolume?: () => number
   className?: string
+  onClick?: () => void
 }
 
 export function Orb({
@@ -35,9 +38,13 @@ export function Orb({
   getInputVolume,
   getOutputVolume,
   className,
+  onClick,
 }: OrbProps) {
   return (
-    <div className={className ?? "relative h-full w-full"}>
+    <div
+      className={cn(className ?? "relative h-full w-full", onClick && "cursor-pointer")}
+      onClick={onClick}
+    >
       <Canvas
         resize={{ debounce: resizeDebounce }}
         gl={{
