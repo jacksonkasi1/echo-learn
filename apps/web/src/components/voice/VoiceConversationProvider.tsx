@@ -173,8 +173,67 @@ export function VoiceConversationProvider({
       if (messageEvent.source === 'user' && messageEvent.message) {
         addMessage('user', messageEvent.message)
       } else if (messageEvent.source === 'ai' && messageEvent.message) {
-        addMessage('assistant', messageEvent.message)
+        // For AI, onMessage is typically the final transcript
+        // We update the last message if it was already streaming, or add new if not
+        setMessages((prev) => {
+          const lastMsg = prev[prev.length - 1]
+          if (lastMsg && lastMsg.role === 'assistant') {
+            // Replace with final version
+            return [
+              ...prev.slice(0, -1),
+              { ...lastMsg, content: messageEvent.message! },
+            ]
+          }
+          return [
+            ...prev,
+            {
+              id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+              role: 'assistant',
+              content: messageEvent.message!,
+              timestamp: new Date(),
+            },
+          ]
+        })
       }
+    },
+    // Handle streaming AI response
+    onAgentChatResponsePart: (chunk: any) => {
+      console.log('[VoiceConversation] Chunk:', chunk)
+      /* 
+       * chunk structure typically: 
+       * { agent_response_event: { agent_response_part: { content: [ { text: "..." } ] } } }
+       * or simply { content: "..." } depending on version
+       * Let's safely extract text
+       */
+       let text = ''
+       if (chunk.agent_response_event?.agent_response_part?.content?.[0]?.text) {
+         text = chunk.agent_response_event.agent_response_part.content[0].text
+       } else if (typeof chunk === 'string') {
+         text = chunk
+       }
+       
+       if (text) {
+         setMessages((prev) => {
+           const lastMsg = prev[prev.length - 1]
+           // If last message is assistant, append
+           if (lastMsg && lastMsg.role === 'assistant') {
+             return [
+               ...prev.slice(0, -1),
+               { ...lastMsg, content: lastMsg.content + text },
+             ]
+           }
+           // New assistant message
+           return [
+             ...prev,
+             {
+               id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+               role: 'assistant',
+               content: text,
+               timestamp: new Date(),
+             },
+           ]
+         })
+       }
     },
     onError: (error) => {
       console.error('[VoiceConversation] Error:', error)
