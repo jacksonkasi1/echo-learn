@@ -1,4 +1,13 @@
 import {
+  ActionBarPrimitive,
+  AssistantIf,
+  BranchPickerPrimitive,
+  ComposerPrimitive,
+  ErrorPrimitive,
+  MessagePrimitive,
+  ThreadPrimitive,
+} from '@assistant-ui/react'
+import {
   ArrowDownIcon,
   ArrowUpIcon,
   CheckIcon,
@@ -14,18 +23,9 @@ import {
   Volume2Icon,
   VolumeXIcon,
 } from 'lucide-react'
-
-import {
-  ActionBarPrimitive,
-  AssistantIf,
-  BranchPickerPrimitive,
-  ComposerPrimitive,
-  ErrorPrimitive,
-  MessagePrimitive,
-  ThreadPrimitive,
-} from '@assistant-ui/react'
-
 import type { FC } from 'react'
+
+import { FollowUpSuggestions } from '@/components/assistant-ui/followup-suggestions'
 
 import { MarkdownText } from '@/components/assistant-ui/markdown-text'
 import { ToolFallback } from '@/components/assistant-ui/tool-fallback'
@@ -108,30 +108,91 @@ const ThreadWelcome: FC = () => {
 }
 
 const ThreadSuggestions: FC = () => {
+  const { suggestions, suggestionsLoading, hasContent, mode } =
+    useLearningContext()
+
+  // Show loading skeleton
+  if (suggestionsLoading) {
+    return (
+      <div className="aui-thread-welcome-suggestions grid w-full @md:grid-cols-2 gap-2 pb-4">
+        {[...Array(4)].map((_, index) => (
+          <div
+            key={`skeleton-${index}`}
+            className="h-20 animate-pulse rounded-3xl border bg-muted/30"
+          />
+        ))}
+      </div>
+    )
+  }
+
+  // If no content (new user), show upload prompt
+  if (!hasContent && mode === 'learn') {
+    return (
+      <div className="aui-thread-welcome-suggestions flex w-full flex-col items-center gap-4 pb-4 text-center">
+        <p className="text-muted-foreground">
+          Upload study materials to get personalized learning suggestions
+        </p>
+      </div>
+    )
+  }
+
+  // If we have dynamic suggestions, show them
+  if (suggestions.length > 0) {
+    return (
+      <div className="aui-thread-welcome-suggestions grid w-full @md:grid-cols-2 gap-2 pb-4">
+        {suggestions.map((suggestion, index) => (
+          <div
+            key={`suggested-action-${suggestion.conceptId || suggestion.title}-${index}`}
+            className="aui-thread-welcome-suggestion-display fade-in slide-in-from-bottom-4 @md:nth-[n+3]:block nth-[n+3]:hidden animate-in fill-mode-both duration-300 ease-out"
+            style={{ animationDelay: `${index * 50}ms` }}
+          >
+            <ThreadPrimitive.Suggestion prompt={suggestion.text} send asChild>
+              <Button
+                variant="ghost"
+                className="aui-thread-welcome-suggestion h-auto w-full flex-1 @md:flex-col flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm dark:hover:bg-accent/60"
+                aria-label={suggestion.text}
+              >
+                <span className="aui-thread-welcome-suggestion-text-1 w-full font-medium line-clamp-1">
+                  {suggestion.title}
+                </span>
+                <span className="aui-thread-welcome-suggestion-text-2 w-full text-muted-foreground line-clamp-2">
+                  {suggestion.text}
+                </span>
+              </Button>
+            </ThreadPrimitive.Suggestion>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Fallback to default suggestions for non-learn modes or empty state
+  const defaultSuggestions = [
+    {
+      title: "What's the weather",
+      label: 'in San Francisco?',
+      action: "What's the weather in San Francisco?",
+    },
+    {
+      title: 'Explain React hooks',
+      label: 'like useState and useEffect',
+      action: 'Explain React hooks like useState and useEffect',
+    },
+    {
+      title: 'Write a SQL query',
+      label: 'to find top customers',
+      action: 'Write a SQL query to find top customers',
+    },
+    {
+      title: 'Create a meal plan',
+      label: 'for healthy weight loss',
+      action: 'Create a meal plan for healthy weight loss',
+    },
+  ]
+
   return (
     <div className="aui-thread-welcome-suggestions grid w-full @md:grid-cols-2 gap-2 pb-4">
-      {[
-        {
-          title: "What's the weather",
-          label: 'in San Francisco?',
-          action: "What's the weather in San Francisco?",
-        },
-        {
-          title: 'Explain React hooks',
-          label: 'like useState and useEffect',
-          action: 'Explain React hooks like useState and useEffect',
-        },
-        {
-          title: 'Write a SQL query',
-          label: 'to find top customers',
-          action: 'Write a SQL query to find top customers',
-        },
-        {
-          title: 'Create a meal plan',
-          label: 'for healthy weight loss',
-          action: 'Create a meal plan for healthy weight loss',
-        },
-      ].map((suggestedAction, index) => (
+      {defaultSuggestions.map((suggestedAction, index) => (
         <div
           key={`suggested-action-${suggestedAction.title}-${index}`}
           className="aui-thread-welcome-suggestion-display fade-in slide-in-from-bottom-4 @md:nth-[n+3]:block nth-[n+3]:hidden animate-in fill-mode-both duration-300 ease-out"
@@ -147,10 +208,10 @@ const ThreadSuggestions: FC = () => {
               className="aui-thread-welcome-suggestion h-auto w-full flex-1 @md:flex-col flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm dark:hover:bg-accent/60"
               aria-label={suggestedAction.action}
             >
-              <span className="aui-thread-welcome-suggestion-text-1 font-medium">
+              <span className="aui-thread-welcome-suggestion-text-1 w-full font-medium line-clamp-1">
                 {suggestedAction.title}
               </span>
-              <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground">
+              <span className="aui-thread-welcome-suggestion-text-2 w-full text-muted-foreground line-clamp-2">
                 {suggestedAction.label}
               </span>
             </Button>
@@ -311,6 +372,13 @@ const AssistantMessage: FC = () => {
         <BranchPicker />
         <AssistantActionBar />
       </div>
+
+      {/* Follow-up suggestions - only shown on last message when not running */}
+      <AssistantIf condition={({ thread }) => !thread.isRunning}>
+        <div className="mx-2">
+          <FollowUpSuggestions />
+        </div>
+      </AssistantIf>
     </MessagePrimitive.Root>
   )
 }
