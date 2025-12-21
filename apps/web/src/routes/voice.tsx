@@ -1,10 +1,7 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { ArrowLeft, Mic, Volume2 } from 'lucide-react'
 
-import {
-  VoiceConversationProvider,
-  VoiceInterface,
-} from '@/components/voice'
+import { VoiceInterface } from '@/components/voice'
 import { Button } from '@/components/ui/button'
 import { useUserId } from '@/lib/user-context'
 import { env } from '@/config/env'
@@ -42,10 +39,16 @@ function VoicePage() {
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
             <Mic className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h2 className="text-xl font-semibold mb-2">Voice Chat Not Configured</h2>
+          <h2 className="text-xl font-semibold mb-2">
+            Voice Chat Not Configured
+          </h2>
           <p className="text-muted-foreground max-w-md mb-6">
-            To enable voice conversations, you need to set up an ElevenLabs agent
-            and configure the <code className="bg-muted px-1 rounded">VITE_ELEVENLABS_AGENT_ID</code> environment variable.
+            To enable voice conversations, you need to set up an ElevenLabs
+            agent and configure the{' '}
+            <code className="bg-muted px-1 rounded">
+              VITE_ELEVENLABS_AGENT_ID
+            </code>{' '}
+            environment variable.
           </p>
           <Link to="/">
             <Button>
@@ -87,30 +90,18 @@ function VoicePage() {
 
       {/* Voice Interface */}
       <main className="flex-1 min-h-0">
-        <VoiceConversationProvider
-          userId={userId}
-          onMessage={(message) => {
-            console.log('[VoicePage] Message:', message)
+        <VoiceInterface
+          className="h-full"
+          onConversationEnd={() => {
+            console.log('[VoicePage] Conversation ended')
           }}
-          onError={(error) => {
-            console.error('[VoicePage] Error:', error)
-          }}
-          onStatusChange={(status) => {
-            console.log('[VoicePage] Status:', status)
-          }}
-        >
-          <VoiceInterface
-            className="h-full"
-            onConversationEnd={() => {
-              console.log('[VoicePage] Conversation ended')
-            }}
-          />
-        </VoiceConversationProvider>
+        />
       </main>
 
       {/* Footer hint */}
       <footer className="border-t px-4 py-2 text-center text-xs text-muted-foreground">
-        Tip: Say "goodbye" to end the conversation, or ask "quiz me" to test your knowledge
+        Tip: Say "goodbye" to end the conversation, or ask "quiz me" to test
+        your knowledge
       </footer>
     </div>
   )

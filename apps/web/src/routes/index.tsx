@@ -1,5 +1,5 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
-import { BookOpen, Database, FileText, Mic } from 'lucide-react'
+import { createFileRoute } from '@tanstack/react-router'
+import { BookOpen, Database, FileText } from 'lucide-react'
 
 import type { RagInfo } from '@/components/MyRuntimeProvider'
 import { Thread } from '@/components/assistant-ui/thread'
@@ -8,7 +8,6 @@ import {
   useRagInfoState,
 } from '@/components/MyRuntimeProvider'
 import { useUserId } from '@/lib/user-context'
-import { Button } from '@/components/ui/button'
 
 export const Route = createFileRoute('/')({ component: App })
 
@@ -48,20 +47,6 @@ function UserInfoDisplay({ userId }: { userId: string }) {
   )
 }
 
-// Voice chat button component
-function VoiceChatButton() {
-  return (
-    <div className="absolute top-4 right-4 z-10">
-      <Link to="/voice">
-        <Button variant="outline" size="sm" className="gap-2">
-          <Mic className="size-4" />
-          Voice Chat
-        </Button>
-      </Link>
-    </div>
-  )
-}
-
 function ChatContent({
   onRagInfo,
   ragInfo,
@@ -75,7 +60,6 @@ function ChatContent({
     <MyRuntimeProvider onRagInfo={onRagInfo}>
       <main className="relative h-dvh">
         <Thread />
-        <VoiceChatButton />
         <RagInfoDisplay ragInfo={ragInfo} />
         <UserInfoDisplay userId={userId} />
       </main>

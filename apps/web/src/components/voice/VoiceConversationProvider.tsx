@@ -5,7 +5,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import { useConversation } from '@elevenlabs/react'
@@ -103,6 +105,18 @@ export function VoiceConversationProvider({
   const [messages, setMessages] = useState<Array<VoiceMessage>>([])
   const [conversationId, setConversationId] = useState<string | null>(null)
 
+  // Refs to prevent React StrictMode double-mounting issues
+  const isStartingRef = useRef(false)
+  const isEndingRef = useRef(false)
+  const sessionActiveRef = useRef(false)
+  const mountedRef = useRef(true)
+  const conversationRef = useRef<ReturnType<typeof useConversation> | null>(
+    null,
+  )
+  // Track if this is a real unmount vs StrictMode remount
+  const hasEverConnectedRef = useRef(false)
+  const unmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // Add message helper
   const addMessage = useCallback(
     (role: 'user' | 'assistant', content: string) => {
@@ -125,12 +139,26 @@ export function VoiceConversationProvider({
   const conversation = useConversation({
     onConnect: () => {
       console.log('[VoiceConversation] Connected')
-      onStatusChange?.('connected')
+      sessionActiveRef.current = true
+      hasEverConnectedRef.current = true
+      // Cancel any pending cleanup from StrictMode remount
+      if (unmountTimeoutRef.current) {
+        clearTimeout(unmountTimeoutRef.current)
+        unmountTimeoutRef.current = null
+      }
+      if (mountedRef.current) {
+        onStatusChange?.('connected')
+      }
     },
     onDisconnect: () => {
       console.log('[VoiceConversation] Disconnected')
-      onStatusChange?.('disconnected')
-      setConversationId(null)
+      sessionActiveRef.current = false
+      isStartingRef.current = false
+      isEndingRef.current = false
+      if (mountedRef.current) {
+        onStatusChange?.('disconnected')
+        setConversationId(null)
+      }
     },
     onMessage: (message) => {
       console.log('[VoiceConversation] Message received:', message)
@@ -150,60 +178,176 @@ export function VoiceConversationProvider({
     },
     onError: (error) => {
       console.error('[VoiceConversation] Error:', error)
-      onError?.(new Error(String(error)))
+      // Reset state on error
+      sessionActiveRef.current = false
+      isStartingRef.current = false
+      if (mountedRef.current) {
+        onError?.(new Error(String(error)))
+      }
     },
     onModeChange: (mode) => {
       console.log('[VoiceConversation] Mode changed:', mode)
     },
   })
 
+  // Keep conversation ref updated
+  conversationRef.current = conversation
+
+  // Cleanup on unmount - end session if active
+  // Empty dependency array so it only runs on mount/unmount
+  // Use a delay to handle React StrictMode double-mount
+  useEffect(() => {
+    mountedRef.current = true
+    // Clear any pending cleanup from previous StrictMode unmount
+    if (unmountTimeoutRef.current) {
+      clearTimeout(unmountTimeoutRef.current)
+      unmountTimeoutRef.current = null
+    }
+    return () => {
+      mountedRef.current = false
+      // Delay cleanup to allow StrictMode remount to cancel it
+      // Only cleanup if we've actually connected before
+      if (
+        sessionActiveRef.current &&
+        conversationRef.current &&
+        hasEverConnectedRef.current
+      ) {
+        unmountTimeoutRef.current = setTimeout(() => {
+          if (
+            !mountedRef.current &&
+            sessionActiveRef.current &&
+            conversationRef.current
+          ) {
+            console.log('[VoiceConversation] Cleaning up on unmount (delayed)')
+            sessionActiveRef.current = false
+            conversationRef.current.endSession().catch((err) => {
+              console.error('[VoiceConversation] Cleanup error:', err)
+            })
+          }
+        }, 100) // Small delay to allow StrictMode remount
+      }
+    }
+  }, [])
+
+  // Request microphone permission
+  const requestMicrophonePermission =
+    useCallback(async (): Promise<boolean> => {
+      try {
+        console.log('[VoiceConversation] Requesting microphone permission')
+        await navigator.mediaDevices.getUserMedia({ audio: true })
+        console.log('[VoiceConversation] Microphone permission granted')
+        return true
+      } catch (error) {
+        console.error(
+          '[VoiceConversation] Microphone permission denied:',
+          error,
+        )
+        onError?.(new Error('Microphone access is required for voice chat'))
+        return false
+      }
+    }, [onError])
+
   // Start conversation
   const startConversation = useCallback(async () => {
+    // Prevent double-start from React StrictMode
+    if (isStartingRef.current) {
+      console.log('[VoiceConversation] Already starting, skipping')
+      return conversationId ?? undefined
+    }
+
+    // Check if already connected via SDK status
+    if (conversation.status === 'connected') {
+      console.log('[VoiceConversation] Already connected, skipping')
+      return conversationId ?? undefined
+    }
+
+    isStartingRef.current = true
+
     try {
       console.log('[VoiceConversation] Starting conversation for user:', userId)
-      onStatusChange?.('connecting')
+      if (mountedRef.current) {
+        onStatusChange?.('connecting')
+      }
 
-      // Start session with agent ID and connection type
-      // The customLlmExtraBody passes user context to our backend
+      // Request microphone permission first
+      const hasMicPermission = await requestMicrophonePermission()
+      if (!hasMicPermission) {
+        onStatusChange?.('disconnected')
+        isStartingRef.current = false
+        return undefined
+      }
+
+      // Start session with agent ID and WebRTC connection
       const convId = await conversation.startSession({
         agentId: env.ELEVENLABS_AGENT_ID,
-        connectionType: 'websocket',
-        customLlmExtraBody: {
-          user_id: userId,
-          conversation_id: `conv-${Date.now()}`,
-        },
+        connectionType: 'webrtc',
+        // customLlmExtraBody: {
+        //   user_id: userId,
+        //   conversation_id: `conv-${Date.now()}`,
+        // },
       })
 
-      setConversationId(convId)
-      console.log('[VoiceConversation] Conversation started:', convId)
+      // Only update state if still mounted
+      if (mountedRef.current) {
+        sessionActiveRef.current = true
+        setConversationId(convId)
+        console.log('[VoiceConversation] Conversation started:', convId)
+      }
 
       return convId
     } catch (error) {
       console.error('[VoiceConversation] Failed to start:', error)
-      onError?.(
-        error instanceof Error
-          ? error
-          : new Error('Failed to start conversation'),
-      )
-      onStatusChange?.('disconnected')
+      if (mountedRef.current) {
+        onError?.(
+          error instanceof Error
+            ? error
+            : new Error('Failed to start conversation'),
+        )
+        onStatusChange?.('disconnected')
+      }
       throw error
+    } finally {
+      isStartingRef.current = false
     }
-  }, [conversation, userId, onError, onStatusChange])
+  }, [
+    conversation,
+    userId,
+    onError,
+    onStatusChange,
+    conversationId,
+    requestMicrophonePermission,
+  ])
 
   // End conversation
   const endConversation = useCallback(async () => {
+    // Prevent double-end
+    if (isEndingRef.current || !sessionActiveRef.current) {
+      console.log('[VoiceConversation] Already ending or not active, skipping')
+      return
+    }
+
+    isEndingRef.current = true
+
     try {
       console.log('[VoiceConversation] Ending conversation')
       await conversation.endSession()
-      setMessages([])
-      setConversationId(null)
+      if (mountedRef.current) {
+        sessionActiveRef.current = false
+        setMessages([])
+        setConversationId(null)
+      }
     } catch (error) {
       console.error('[VoiceConversation] Failed to end:', error)
-      onError?.(
-        error instanceof Error
-          ? error
-          : new Error('Failed to end conversation'),
-      )
+      if (mountedRef.current) {
+        onError?.(
+          error instanceof Error
+            ? error
+            : new Error('Failed to end conversation'),
+        )
+      }
+    } finally {
+      isEndingRef.current = false
+      sessionActiveRef.current = false
     }
   }, [conversation, onError])
 

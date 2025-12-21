@@ -15,3 +15,6 @@ export type { OrbAgentState } from './VoiceOrb'
 
 // ** export interface component
 export { VoiceInterface } from './VoiceInterface'
+
+// ** export floating voice component
+export { FloatingVoice } from './FloatingVoice'
