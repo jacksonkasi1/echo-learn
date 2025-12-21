@@ -19,6 +19,9 @@ export * from "./modes";
 // ** export analysis pipeline
 export * from "./analysis";
 
+// ** export follow-up suggestions
+export * from "./followup";
+
 // ** export types
 export type {
   // Query types
