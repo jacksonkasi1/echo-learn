@@ -110,11 +110,28 @@ export function getTestModeSystemPromptWithContext(
   basePrompt: string,
   session: TestSession | null,
   currentQuestion: TestQuestion | null,
-  progress: TestSessionProgress | null
+  progress: TestSessionProgress | null,
 ): string {
   let contextSection = "";
 
-  if (session && progress) {
+  // No active session - instruct LLM to start testing
+  if (!session) {
+    contextSection = `
+
+## NO ACTIVE TEST SESSION
+
+The user has entered Test Mode but no test session is active yet.
+
+**YOUR FIRST ACTION:** Call the generate_adaptive_question tool to get a question for the user.
+
+After receiving the question from the tool:
+1. Present the question to the user in a friendly, encouraging way
+2. Wait for their answer
+3. When they answer, evaluate it and call save_learning_progress
+
+If generate_adaptive_question returns no question (no concepts in knowledge graph),
+inform the user they need to learn some topics first before testing.`;
+  } else if (session && progress) {
     contextSection = `
 
 ## Current Test Session
@@ -127,12 +144,46 @@ export function getTestModeSystemPromptWithContext(
   if (currentQuestion) {
     contextSection += `
 
-## Current Question
+## Current Question (AWAITING ANSWER)
+- Question ID: ${currentQuestion.questionId}
 - Concept: ${currentQuestion.conceptLabel}
 - Difficulty: ${currentQuestion.difficulty}
 - Type: ${currentQuestion.questionType}
+- Question Text: "${currentQuestion.question}"
+- Expected Answer: "${currentQuestion.expectedAnswer}"
 
-The question has already been presented to the user. Wait for their answer.`;
+The question has already been presented to the user. The user's next message is their ANSWER.
+
+## CRITICAL: Answer Evaluation Steps
+When the user responds, you MUST:
+
+1. **Compare** their answer against Expected Answer above
+2. **Evaluate** as:
+   - CORRECT: Answer matches expected answer or demonstrates equivalent understanding
+   - PARTIAL: Shows some understanding but misses key points
+   - INCORRECT: Wrong answer or fundamental misunderstanding
+
+3. **IMMEDIATELY call save_learning_progress** with:
+   - action: "mark_topic_strong" if CORRECT
+   - action: "mark_topic_weak" if INCORRECT or PARTIAL
+   - topics: ["${currentQuestion.conceptLabel}"]
+   - reason: Brief explanation of your evaluation
+
+4. **Then respond** to the user with:
+   - Whether they got it right/wrong/partial
+   - The correct answer if they were wrong
+   - Encouraging feedback
+   - Offer to continue with next question
+
+DO NOT skip the save_learning_progress call - this updates their memory cluster!`;
+  } else if (session && !currentQuestion) {
+    // Session exists but no current question - need to generate one
+    contextSection += `
+
+## SESSION ACTIVE - NEED NEXT QUESTION
+
+A test session is active but no current question is set.
+Call generate_adaptive_question to get the next question for the user.`;
   }
 
   return `${basePrompt}
@@ -142,7 +193,7 @@ ${contextSection}
 You are conducting an active quiz/test session.
 - Evaluate answers explicitly (correct, partial, incorrect)
 - Provide clear, constructive feedback
-- Update mastery scores based on performance
+- Update mastery scores based on performance via save_learning_progress tool
 - Keep the tone encouraging but honest
 
 ## Answer Evaluation Guidelines
@@ -151,17 +202,18 @@ You are conducting an active quiz/test session.
 - INCORRECT: User's answer is wrong or shows fundamental misunderstanding
 
 ## After Each Answer
-1. State whether the answer is correct, partial, or incorrect
-2. Provide brief explanation of the right answer
-3. Give encouraging feedback
-4. Ask if ready for the next question`;
+1. Call save_learning_progress to update their mastery (REQUIRED!)
+2. State whether the answer is correct, partial, or incorrect
+3. Provide brief explanation of the right answer
+4. Give encouraging feedback
+5. Ask if ready for the next question`;
 }
 
 /**
  * Initialize test mode processing
  */
 export async function initializeTestMode(
-  context: TestModeContext
+  context: TestModeContext,
 ): Promise<TestModeResult> {
   logger.info("Initializing test mode", {
     userId: context.userId,
@@ -169,7 +221,8 @@ export async function initializeTestMode(
   });
 
   // Check for existing session
-  let session = context.activeSession || (await getActiveTestSession(context.userId));
+  let session =
+    context.activeSession || (await getActiveTestSession(context.userId));
   let currentQuestion: TestQuestion | null = null;
   let progress: TestSessionProgress | null = null;
 
@@ -191,7 +244,7 @@ export async function initializeTestMode(
     basePrompt,
     session,
     currentQuestion,
-    progress
+    progress,
   );
 
   return {
@@ -210,7 +263,7 @@ export async function initializeTestMode(
  */
 export async function startTestSession(
   userId: string,
-  config: Partial<TestModeConfig> = {}
+  config: Partial<TestModeConfig> = {},
 ): Promise<TestSession> {
   logger.info("Starting new test session", { userId, config });
 
@@ -226,7 +279,9 @@ export async function startTestSession(
 
   const input: CreateTestSessionInput = {
     userId,
-    targetQuestionCount: config.targetQuestionCount ?? DEFAULT_TEST_MODE_CONFIG.targetQuestionCount,
+    targetQuestionCount:
+      config.targetQuestionCount ??
+      DEFAULT_TEST_MODE_CONFIG.targetQuestionCount,
     focusConceptIds: config.focusConceptIds,
     difficulty: config.difficulty ?? DEFAULT_TEST_MODE_CONFIG.difficulty,
   };
@@ -252,7 +307,7 @@ export async function addQuestion(
   question: string,
   expectedAnswer: string,
   difficulty: QuestionDifficulty,
-  questionType: TestQuestion["questionType"]
+  questionType: TestQuestion["questionType"],
 ): Promise<TestQuestion> {
   const testQuestion: TestQuestion = {
     questionId: generateQuestionId(),
@@ -281,8 +336,8 @@ export async function addQuestion(
  * These are stronger than learn mode since evaluation is explicit
  */
 export const TEST_MODE_SIGNAL_WEIGHTS: Record<AnswerEvaluation, number> = {
-  correct: TEST_MODE_MASTERY_CHANGES.correct,     // +0.3
-  partial: TEST_MODE_MASTERY_CHANGES.partial,     // +0.1
+  correct: TEST_MODE_MASTERY_CHANGES.correct, // +0.3
+  partial: TEST_MODE_MASTERY_CHANGES.partial, // +0.1
   incorrect: TEST_MODE_MASTERY_CHANGES.incorrect, // -0.2
 };
 
@@ -293,7 +348,7 @@ export function createTestModeSignal(
   conceptId: string,
   conceptLabel: string,
   evaluation: AnswerEvaluation,
-  context?: string
+  context?: string,
 ): LearningSignal {
   const signalTypeMap: Record<AnswerEvaluation, LearningSignal["type"]> = {
     correct: "quiz_correct",
@@ -322,14 +377,16 @@ export async function processAnswer(
   evaluation: AnswerEvaluation,
   feedback: string,
   previousMastery: number,
-  newMastery: number
+  newMastery: number,
 ): Promise<TestResult> {
   const session = await getActiveTestSession(userId);
   if (!session) {
     throw new Error("No active test session found");
   }
 
-  const questionIndex = session.questions.findIndex(q => q.questionId === questionId);
+  const questionIndex = session.questions.findIndex(
+    (q) => q.questionId === questionId,
+  );
   if (questionIndex === -1) {
     throw new Error(`Question ${questionId} not found in session`);
   }
@@ -362,7 +419,7 @@ export async function processAnswer(
  * End the test session and get summary
  */
 export async function endTestSession(
-  userId: string
+  userId: string,
 ): Promise<TestSessionSummary> {
   logger.info("Ending test session", { userId });
 
@@ -433,14 +490,17 @@ export async function getTestSessionState(userId: string): Promise<{
 /**
  * Determine difficulty for next question based on performance
  */
-export function getAdaptiveDifficulty(session: TestSession): QuestionDifficulty {
+export function getAdaptiveDifficulty(
+  session: TestSession,
+): QuestionDifficulty {
   if (session.results.length === 0) {
     return "medium"; // Start with medium
   }
 
   const recentResults = session.results.slice(-3); // Look at last 3 answers
   const recentScore =
-    recentResults.filter(r => r.evaluation === "correct").length / recentResults.length;
+    recentResults.filter((r) => r.evaluation === "correct").length /
+    recentResults.length;
 
   if (recentScore >= 0.8) {
     return "hard"; // Doing well, increase difficulty
@@ -455,9 +515,5 @@ export function getAdaptiveDifficulty(session: TestSession): QuestionDifficulty 
  * Get tools that should be enhanced in test mode
  */
 export function getTestModeToolEnhancements(): string[] {
-  return [
-    "generate_adaptive_question",
-    "evaluate_answer",
-    "get_test_progress",
-  ];
+  return ["generate_adaptive_question", "evaluate_answer", "get_test_progress"];
 }

@@ -7,6 +7,8 @@ import {
   MyRuntimeProvider,
   useRagInfoState,
 } from '@/components/MyRuntimeProvider'
+import { useLearningContext } from '@/components/learning/LearningContext'
+import { LearningLayout } from '@/components/learning/LearningLayout'
 
 export const Route = createFileRoute('/')({ component: App })
 
@@ -41,12 +43,14 @@ function ChatContent({
   onRagInfo: (info: RagInfo) => void
   ragInfo: RagInfo
 }) {
+  const { mode } = useLearningContext()
+
   return (
-    <MyRuntimeProvider onRagInfo={onRagInfo}>
-      <main className="relative h-dvh">
+    <MyRuntimeProvider onRagInfo={onRagInfo} mode={mode}>
+      <div className="relative h-full">
         <Thread />
         <RagInfoDisplay ragInfo={ragInfo} />
-      </main>
+      </div>
     </MyRuntimeProvider>
   )
 }
@@ -54,5 +58,9 @@ function ChatContent({
 function App() {
   const { ragInfo, handleRagInfo } = useRagInfoState()
 
-  return <ChatContent onRagInfo={handleRagInfo} ragInfo={ragInfo} />
+  return (
+    <LearningLayout>
+      <ChatContent onRagInfo={handleRagInfo} ragInfo={ragInfo} />
+    </LearningLayout>
+  )
 }

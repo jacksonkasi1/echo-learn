@@ -20,6 +20,7 @@ export interface ChatCompletionRequest {
   useRag?: boolean
   ragTopK?: number
   ragMinScore?: number
+  mode?: 'learn' | 'chat' | 'test'
 }
 
 export interface ChatCompletionChoice {
@@ -66,6 +67,7 @@ export async function sendChatCompletion(
       use_rag: request.useRag ?? true,
       rag_top_k: request.ragTopK ?? 5,
       rag_min_score: request.ragMinScore ?? 0.01, // Lowered for Upstash hybrid RRF scoring
+      mode: request.mode,
     },
   )
 
@@ -94,6 +96,7 @@ export async function* streamChatCompletion(
       use_rag: request.useRag ?? true,
       rag_top_k: request.ragTopK ?? 5,
       rag_min_score: request.ragMinScore ?? 0.01, // Lowered for Upstash hybrid RRF scoring
+      mode: request.mode,
     }),
   })
 

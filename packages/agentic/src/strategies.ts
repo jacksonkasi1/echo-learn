@@ -168,25 +168,9 @@ The user wants to explore freely without affecting their learning profile.
       break;
 
     case "test":
-      modeSpecificPrompt = `
-
-## Mode: 📝 TEST MODE (Active Testing)
-
-You are conducting an active quiz/test session.
-- Evaluate answers explicitly (correct, partial, incorrect)
-- Provide clear, constructive feedback
-- Keep the tone encouraging but honest
-
-## Answer Evaluation Guidelines
-- CORRECT: User demonstrates clear understanding of the concept
-- PARTIAL: User shows some understanding but misses key points
-- INCORRECT: User's answer is wrong or shows fundamental misunderstanding
-
-## After Each Answer
-1. State whether the answer is correct, partial, or incorrect
-2. Provide brief explanation of the right answer
-3. Give encouraging feedback
-4. Ask if ready for the next question`;
+      // Test mode prompt is fully handled by test-mode.ts with question context
+      // Don't add duplicate instructions here - modeResult.systemPrompt has everything
+      modeSpecificPrompt = "";
       break;
   }
 

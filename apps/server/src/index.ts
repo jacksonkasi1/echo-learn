@@ -10,6 +10,7 @@ import { deleteRoute } from "@/routes/files/delete-file";
 import { chatRoute } from "@/routes/v1/chat/completions";
 import { usersRoute } from "@/routes/users";
 import { elevenlabsRoute } from "@/routes/elevenlabs";
+import { learningRoute } from "@/routes/learning";
 
 // ** import agentic
 import { initializeAgenticRouter } from "@repo/agentic";
@@ -118,6 +119,13 @@ app.route("/elevenlabs", elevenlabsRoute);
 // GET /api/users/:userId/graph/stats - Get graph statistics
 // GET /api/users/:userId/graph/search - Search graph nodes
 app.route("/api/users", usersRoute);
+
+// Learning analytics routes
+// GET /api/learning/analytics - Get comprehensive learning analytics
+// GET /api/learning/mastery-map - Get mastery visualization data
+// GET /api/learning/due-reviews - Get items due for review
+// GET /api/learning/recommendations - Get learning recommendations
+app.route("/api/learning", learningRoute);
 
 // ===========================================
 // Error Handling

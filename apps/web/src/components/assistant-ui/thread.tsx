@@ -1,12 +1,13 @@
-import { Link } from '@tanstack/react-router'
 import {
   ArrowDownIcon,
   ArrowUpIcon,
-  BookOpenIcon,
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ClipboardList,
   CopyIcon,
+  GraduationCap,
+  MessageSquare,
   PencilIcon,
   RefreshCwIcon,
   Square,
@@ -26,11 +27,18 @@ import {
 
 import type { FC } from 'react'
 
-import { Button } from '@/components/ui/button'
 import { MarkdownText } from '@/components/assistant-ui/markdown-text'
 import { ToolFallback } from '@/components/assistant-ui/tool-fallback'
 import { TooltipIconButton } from '@/components/assistant-ui/tooltip-icon-button'
-import { ModeToggle } from '@/components/mode-toggle'
+import type { ChatMode } from '@/components/learning/LearningContext'
+import { useLearningContext } from '@/components/learning/LearningContext'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 import { cn } from '@/lib/utils'
 
@@ -42,20 +50,6 @@ export const Thread: FC = () => {
         ['--thread-max-width' as string]: '44rem',
       }}
     >
-      <div className="absolute right-4 top-4 z-10 flex flex-col gap-2">
-        <Link to="/knowledge">
-          <Button variant="ghost" size="icon" title="Knowledge Base">
-            <BookOpenIcon />
-          </Button>
-        </Link>
-        <Link to="/voice">
-          <Button variant="ghost" size="icon" title="Voice Mode">
-            <Volume2Icon />
-          </Button>
-        </Link>
-        <ModeToggle />
-      </div>
-
       <ThreadPrimitive.Viewport
         turnAnchor="top"
         className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
@@ -168,34 +162,101 @@ const ThreadSuggestions: FC = () => {
 }
 
 const Composer: FC = () => {
+  const { mode } = useLearningContext()
+
+  const placeholders = {
+    learn: 'Ask a question to start learning...',
+    chat: 'Ask anything (off the record)...',
+    test: 'Ready for a quiz? Type "start test"...',
+  }
+
   return (
     <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
       <div className="flex w-full flex-col rounded-3xl border border-input bg-background px-1 pt-2 shadow-xs outline-none transition-[color,box-shadow] has-[textarea:focus-visible]:border-ring has-[textarea:focus-visible]:ring-[3px] has-[textarea:focus-visible]:ring-ring/50 dark:bg-background">
         <ComposerPrimitive.Input
-          placeholder="Send a message..."
+          placeholder={placeholders[mode]}
           className="aui-composer-input mb-1 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pt-1.5 pb-3 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-0"
           rows={1}
           autoFocus
           aria-label="Message input"
         />
-        <ComposerAction />
+        <ComposerToolbar />
       </div>
     </ComposerPrimitive.Root>
   )
 }
 
+const ComposerToolbar: FC = () => {
+  return (
+    <div className="flex items-center justify-between px-2 pb-2">
+      <div className="flex items-center gap-1">
+        <ComposerModeSelector />
+      </div>
+      <ComposerAction />
+    </div>
+  )
+}
+
+const ComposerModeSelector: FC = () => {
+  const { mode, setMode } = useLearningContext()
+
+  const MODES: Record<ChatMode, { label: string; icon: React.ReactNode }> = {
+    learn: {
+      label: 'Learn',
+      icon: <GraduationCap className="size-4" />,
+    },
+    chat: {
+      label: 'Chat',
+      icon: <MessageSquare className="size-4" />,
+    },
+    test: {
+      label: 'Test',
+      icon: <ClipboardList className="size-4" />,
+    },
+  }
+
+  const currentMode = MODES[mode]
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-2 px-2 text-muted-foreground hover:text-foreground"
+        >
+          {currentMode.icon}
+          <span className="text-xs font-medium">{currentMode.label}</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {(Object.keys(MODES) as Array<ChatMode>).map((key) => (
+          <DropdownMenuItem
+            key={key}
+            onClick={() => setMode(key)}
+            className="gap-2"
+          >
+            {MODES[key].icon}
+            <span>{MODES[key].label}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 const ComposerAction: FC = () => {
   return (
-    <div className="aui-composer-action-wrapper relative mx-1 mt-2 mb-2 flex items-center justify-end">
+    <div className="aui-composer-action-wrapper flex items-center justify-end">
       <AssistantIf condition={({ thread }) => !thread.isRunning}>
         <ComposerPrimitive.Send asChild>
           <TooltipIconButton
             tooltip="Send message"
-            side="bottom"
+            side="top"
             type="submit"
             variant="default"
             size="icon"
-            className="aui-composer-send size-[34px] rounded-full p-1"
+            className="aui-composer-send size-8.5 rounded-full p-1"
             aria-label="Send message"
           >
             <ArrowUpIcon className="aui-composer-send-icon size-5" />
@@ -209,7 +270,7 @@ const ComposerAction: FC = () => {
             type="button"
             variant="default"
             size="icon"
-            className="aui-composer-cancel size-[34px] rounded-full border border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90"
+            className="aui-composer-cancel size-8.5 rounded-full border border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90"
             aria-label="Stop generating"
           >
             <Square className="aui-composer-cancel-icon size-3.5 fill-white dark:fill-black" />
@@ -332,7 +393,7 @@ const EditComposer: FC = () => {
     <MessagePrimitive.Root className="aui-edit-composer-wrapper mx-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 px-2">
       <ComposerPrimitive.Root className="aui-edit-composer-root ml-auto flex w-full max-w-7/8 flex-col rounded-xl bg-muted">
         <ComposerPrimitive.Input
-          className="aui-edit-composer-input flex min-h-[60px] w-full resize-none bg-transparent p-4 text-foreground outline-none"
+          className="aui-edit-composer-input flex min-h-15 w-full resize-none bg-transparent p-4 text-foreground outline-none"
           autoFocus
         />
 

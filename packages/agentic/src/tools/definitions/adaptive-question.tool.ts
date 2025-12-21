@@ -19,6 +19,14 @@ import {
   checkPrerequisites,
 } from "@repo/storage";
 
+// ** import session management
+import {
+  getActiveTestSession,
+  createTestSession,
+  addQuestionToSession,
+  generateQuestionId,
+} from "@repo/storage";
+
 // ** import utils
 import { logger } from "@repo/logs";
 
@@ -347,6 +355,19 @@ export const adaptiveQuestionTool: ToolDefinition<
         requestedDifficulty: input.difficulty,
       });
 
+      // Ensure there's an active test session (create one if needed)
+      let session = await getActiveTestSession(context.userId);
+      if (!session) {
+        logger.info("No active test session, creating one", {
+          userId: context.userId,
+        });
+        session = await createTestSession({
+          userId: context.userId,
+          targetQuestionCount: 10,
+          difficulty: "adaptive",
+        });
+      }
+
       // Select the best concept to ask about
       const selectedConcept = await selectConcept(
         context.userId,
@@ -411,6 +432,27 @@ export const adaptiveQuestionTool: ToolDefinition<
         hints: [hintTemplate],
         context: selectedConcept.reason,
       };
+
+      // Add question to the test session so it persists for answer evaluation
+      const testQuestion = {
+        questionId: generateQuestionId(),
+        conceptId: selectedConcept.conceptId,
+        conceptLabel: selectedConcept.conceptLabel,
+        difficulty,
+        questionType,
+        question: questionTemplate,
+        expectedAnswer: question.expectedAnswer,
+        hints: [hintTemplate],
+        createdAt: new Date().toISOString(),
+      };
+
+      await addQuestionToSession(context.userId, testQuestion);
+
+      logger.info("Question added to test session", {
+        userId: context.userId,
+        questionId: testQuestion.questionId,
+        sessionId: session.sessionId,
+      });
 
       // Get alternative concepts for variety
       const alternatives = await getWeakestConcepts(context.userId, 3);

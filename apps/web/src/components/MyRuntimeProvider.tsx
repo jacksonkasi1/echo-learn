@@ -23,6 +23,7 @@ export interface RagInfo {
 // Create an adapter that connects assistant-ui to our backend API
 function createModelAdapter(
   userId: string,
+  mode: 'learn' | 'chat' | 'test',
   onRagInfo?: (info: RagInfo) => void,
 ): ChatModelAdapter {
   return {
@@ -47,6 +48,7 @@ function createModelAdapter(
           {
             messages: apiMessages,
             userId,
+            mode,
             maxTokens: 4000,
             useRag: true,
             ragTopK: 50,
@@ -92,11 +94,13 @@ const speechAdapter = new WebSpeechSynthesisAdapter()
 
 interface MyRuntimeProviderProps {
   children: ReactNode
+  mode: 'learn' | 'chat' | 'test'
   onRagInfo?: (info: RagInfo) => void
 }
 
 export function MyRuntimeProvider({
   children,
+  mode,
   onRagInfo,
 }: Readonly<MyRuntimeProviderProps>) {
   // Get userId from context for RAG-enabled chat
@@ -104,8 +108,8 @@ export function MyRuntimeProvider({
 
   // Create adapter with current userId
   const adapter = useMemo(
-    () => createModelAdapter(userId, onRagInfo),
-    [userId, onRagInfo],
+    () => createModelAdapter(userId, mode, onRagInfo),
+    [userId, mode, onRagInfo],
   )
 
   // Use useLocalRuntime which manages state automatically

@@ -1,6 +1,7 @@
 // ** import types
 import type { ToolDefinition, ToolExecutionContext } from "../../types/tools";
 import { ToolCategory } from "../../types/tools";
+import type { LearningSignal } from "@repo/shared";
 
 // ** import lib
 import { z } from "zod";
@@ -9,10 +10,69 @@ import {
   getUserProfile,
   markTopicCovered,
   logInteraction,
+  updateMasteryFromSignal,
 } from "@repo/storage";
 
 // ** import utils
 import { logger } from "@repo/logs";
+
+/**
+ * Generate a unique concept ID from a topic label
+ */
+function generateConceptId(topic: string): string {
+  return `concept_${topic
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "")}`;
+}
+
+/**
+ * Create a learning signal for mastery update
+ */
+function createLearningSignal(
+  topic: string,
+  action: "mark_topic_strong" | "mark_topic_weak" | "mark_topic_learned",
+  reason?: string,
+): LearningSignal {
+  const conceptId = generateConceptId(topic);
+
+  // Determine mastery delta based on action
+  let masteryDelta: number;
+  let signalType: LearningSignal["type"];
+  let confidence: number;
+
+  switch (action) {
+    case "mark_topic_strong":
+      masteryDelta = 0.25; // Significant boost for correct answer
+      signalType = "quiz_correct";
+      confidence = 0.9; // High confidence for explicit evaluation
+      break;
+    case "mark_topic_weak":
+      masteryDelta = -0.15; // Penalty for wrong answer
+      signalType = "quiz_incorrect";
+      confidence = 0.9; // High confidence for explicit evaluation
+      break;
+    case "mark_topic_learned":
+      masteryDelta = 0.1; // Small boost for learning
+      signalType = "asking_about"; // Use valid signal type
+      confidence = 0.7; // Medium confidence for learning
+      break;
+    default:
+      masteryDelta = 0;
+      signalType = "asking_about";
+      confidence = 0.5;
+  }
+
+  return {
+    type: signalType,
+    conceptId,
+    conceptLabel: topic,
+    confidence,
+    masteryDelta,
+    timestamp: new Date().toISOString(),
+    context: reason || `Action: ${action}`,
+  };
+}
 
 /**
  * Save learning progress tool input schema
@@ -120,12 +180,19 @@ export const saveLearningTool: ToolDefinition<
 
       switch (input.action) {
         case "mark_topic_learned": {
-          // Mark topics as covered
+          // Mark topics as covered and update mastery
           if (input.topics && input.topics.length > 0) {
             await Promise.all(
-              input.topics.map((topic) =>
-                markTopicCovered(context.userId, topic),
-              ),
+              input.topics.map(async (topic) => {
+                await markTopicCovered(context.userId, topic);
+                // Also update concept mastery in knowledge graph
+                const signal = createLearningSignal(
+                  topic,
+                  "mark_topic_learned",
+                  input.summary,
+                );
+                await updateMasteryFromSignal(context.userId, signal);
+              }),
             );
           }
 
@@ -142,7 +209,8 @@ export const saveLearningTool: ToolDefinition<
             updatedProfile: {
               level: profile.level,
               questionsAnswered: profile.questionsAnswered,
-              topicsCovered: profile.coveredTopics.length + (input.topics?.length || 0),
+              topicsCovered:
+                profile.coveredTopics.length + (input.topics?.length || 0),
               weakAreas: profile.weakAreas,
               strongAreas: profile.strongAreas,
             },
@@ -150,7 +218,7 @@ export const saveLearningTool: ToolDefinition<
         }
 
         case "mark_topic_weak": {
-          // Add topics to weak areas
+          // Add topics to weak areas and update mastery (negative)
           if (input.topics && input.topics.length > 0) {
             const newWeakAreas = [...profile.weakAreas];
 
@@ -164,6 +232,14 @@ export const saveLearningTool: ToolDefinition<
               if (strongIndex > -1) {
                 profile.strongAreas.splice(strongIndex, 1);
               }
+
+              // Update concept mastery in knowledge graph (negative delta)
+              const signal = createLearningSignal(
+                topic,
+                "mark_topic_weak",
+                input.summary,
+              );
+              await updateMasteryFromSignal(context.userId, signal);
             }
 
             // Keep arrays manageable (max 20)
@@ -175,7 +251,7 @@ export const saveLearningTool: ToolDefinition<
             });
           }
 
-          logger.info("Topics marked as weak", {
+          logger.info("Topics marked as weak with mastery updated", {
             userId: context.userId,
             topics: input.topics,
             executionTime: Date.now() - startTime,
@@ -184,7 +260,7 @@ export const saveLearningTool: ToolDefinition<
           return {
             success: true,
             action: input.action,
-            message: `Marked ${input.topics?.length || 0} topic(s) as needing work`,
+            message: `Marked ${input.topics?.length || 0} topic(s) as needing work (mastery decreased)`,
             updatedProfile: {
               level: profile.level,
               questionsAnswered: profile.questionsAnswered,
@@ -198,7 +274,7 @@ export const saveLearningTool: ToolDefinition<
         }
 
         case "mark_topic_strong": {
-          // Add topics to strong areas
+          // Add topics to strong areas and update mastery (positive)
           if (input.topics && input.topics.length > 0) {
             const newStrongAreas = [...profile.strongAreas];
 
@@ -212,6 +288,14 @@ export const saveLearningTool: ToolDefinition<
               if (weakIndex > -1) {
                 profile.weakAreas.splice(weakIndex, 1);
               }
+
+              // Update concept mastery in knowledge graph (positive delta)
+              const signal = createLearningSignal(
+                topic,
+                "mark_topic_strong",
+                input.summary,
+              );
+              await updateMasteryFromSignal(context.userId, signal);
             }
 
             // Keep arrays manageable (max 20)
@@ -223,7 +307,7 @@ export const saveLearningTool: ToolDefinition<
             });
           }
 
-          logger.info("Topics marked as strong", {
+          logger.info("Topics marked as strong with mastery updated", {
             userId: context.userId,
             topics: input.topics,
             executionTime: Date.now() - startTime,
@@ -232,7 +316,7 @@ export const saveLearningTool: ToolDefinition<
           return {
             success: true,
             action: input.action,
-            message: `Marked ${input.topics?.length || 0} topic(s) as mastered`,
+            message: `Marked ${input.topics?.length || 0} topic(s) as mastered (mastery increased)`,
             updatedProfile: {
               level: profile.level,
               questionsAnswered: profile.questionsAnswered,
