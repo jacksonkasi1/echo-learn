@@ -4,9 +4,15 @@
 import { createContext, useCallback, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 
+// Development mode check - only use hardcoded ID in explicit dev mode
+const IS_DEV_MODE =
+  process.env.NODE_ENV === 'development' ||
+  process.env.NEXT_PUBLIC_DEV_MODE === 'true'
+
 // Temporary user ID - will be replaced with auth later
-// HARDCODED for development to ensure consistent user across sessions
-const DEFAULT_USER_ID = 'user_1766225500960_0hanw9e' // 'user_dev_echo_learn'
+// Only used in development mode to ensure consistent user across sessions
+const DEV_USER_ID = 'user_1766225500960_0hanw9e'
+const DEFAULT_USER_ID = 'user_anonymous'
 
 interface UserContextType {
   userId: string
@@ -18,24 +24,26 @@ const UserContext = createContext<UserContextType | null>(null)
 
 // Get or create a persistent user ID from localStorage
 function getStoredUserId(): string {
-  // TODO: Remove this hardcoded return when auth is implemented
-  // For development, always use the same user ID to persist data
-  return DEFAULT_USER_ID
+  // In development mode, use hardcoded ID for consistent testing
+  if (IS_DEV_MODE) {
+    console.log('[Dev Mode] Using hardcoded user ID for development')
+    return DEV_USER_ID
+  }
 
-  // Original logic - uncomment when auth is ready:
-  // if (typeof window === 'undefined') {
-  //   return DEFAULT_USER_ID
-  // }
-  //
-  // const stored = localStorage.getItem('echo-learn-user-id')
-  // if (stored) {
-  //   return stored
-  // }
-  //
-  // // Generate a new user ID if none exists
-  // const newId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-  // localStorage.setItem('echo-learn-user-id', newId)
-  // return newId
+  // Production: use localStorage-based user ID
+  if (typeof window === 'undefined') {
+    return DEFAULT_USER_ID
+  }
+
+  const stored = localStorage.getItem('echo-learn-user-id')
+  if (stored) {
+    return stored
+  }
+
+  // Generate a new user ID if none exists
+  const newId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+  localStorage.setItem('echo-learn-user-id', newId)
+  return newId
 }
 
 export function UserProvider({ children }: { children: ReactNode }) {
@@ -73,5 +81,5 @@ export function useUserId(): string {
   return userId
 }
 
-// Export the default user ID for cases where context isn't available
-export { DEFAULT_USER_ID }
+// Export for cases where context isn't available
+export { DEFAULT_USER_ID, DEV_USER_ID, IS_DEV_MODE }

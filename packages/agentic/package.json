@@ -35,6 +35,7 @@
     "@repo/shared": "workspace:*",
     "@repo/storage": "workspace:*",
     "ai": "^6.0.0-beta.164",
+    "mathjs": "^15.1.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

@@ -232,26 +232,30 @@ Adjust topK based on what the user is asking:
       }
     });
 
-    // Calculate costs from usage
-    result.usage.then((usage) => {
-      if (usage) {
-        // Gemini Flash: $0.075/1M input, $0.30/1M output
-        const inputTokens = usage.inputTokens || 0;
-        const outputTokens = usage.outputTokens || 0;
-        cost.generation =
-          (inputTokens * 0.075) / 1_000_000 + (outputTokens * 0.3) / 1_000_000;
-        cost.tools = toolCalls.length * 0.01;
-        cost.total = cost.generation + cost.tools;
+    // Calculate costs from usage - wait for both steps and usage to resolve
+    // to ensure toolCalls array is populated before computing tool costs
+    const costPromise = Promise.all([stepsPromise, result.usage]).then(
+      ([, usage]) => {
+        if (usage) {
+          // Gemini Flash: $0.075/1M input, $0.30/1M output
+          const inputTokens = usage.inputTokens || 0;
+          const outputTokens = usage.outputTokens || 0;
+          cost.generation =
+            (inputTokens * 0.075) / 1_000_000 +
+            (outputTokens * 0.3) / 1_000_000;
+          cost.tools = toolCalls.length * 0.01;
+          cost.total = cost.generation + cost.tools;
 
-        logger.info("Execution completed", {
-          inputTokens,
-          outputTokens,
-          totalTokens: usage.totalTokens || 0,
-          toolCalls: toolCalls.length,
-          cost: cost.total.toFixed(6),
-        });
-      }
-    });
+          logger.info("Execution completed", {
+            inputTokens,
+            outputTokens,
+            totalTokens: usage.totalTokens || 0,
+            toolCalls: toolCalls.length,
+            cost: cost.total.toFixed(6),
+          });
+        }
+      },
+    );
 
     // Convert textStream to ReadableStream<Uint8Array>
     const encoder = new TextEncoder();
@@ -261,8 +265,8 @@ Adjust topK based on what the user is asking:
           for await (const text of result.textStream) {
             controller.enqueue(encoder.encode(text));
           }
-          // Wait for steps to be processed
-          await stepsPromise;
+          // Wait for steps and cost to be processed
+          await costPromise;
           controller.close();
         } catch (err) {
           controller.error(err);
