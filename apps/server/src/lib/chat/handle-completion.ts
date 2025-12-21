@@ -9,7 +9,7 @@ import { generateStreamingResponse, buildSystemPrompt } from "@repo/llm";
 import { retrieveContext } from "@repo/rag";
 import { getUserProfile, updateUserProfile } from "@repo/storage";
 import { updateAnalytics } from "@repo/analytics";
-import { getAgenticRouter } from "@repo/agentic";
+import { getAgenticRouter, analyzeInteractionAsync } from "@repo/agentic";
 
 // ** import utils
 import { logger } from "@repo/logs";
@@ -274,10 +274,17 @@ async function processAgenticCompletion(
             logger.error("Failed to update user profile", err);
           });
 
-          // TODO (Phase 2): Trigger background analysis for learn mode
-          // if (options.mode === "learn") {
-          //   analyzeInteractionAsync(userId, userMessage, _fullResponse, messages);
-          // }
+          // Trigger background analysis for learn mode (Phase 2)
+          // This runs asynchronously and doesn't block the response
+          if (options.mode === "learn") {
+            analyzeInteractionAsync(
+              userId,
+              userMessage,
+              _fullResponse,
+              messages.map((m) => ({ role: m.role, content: m.content })),
+              options.mode,
+            );
+          }
         },
         onError: (error) => {
           logger.error("Completion stream error", error);
