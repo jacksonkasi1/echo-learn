@@ -11,7 +11,9 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.0-beta.87",
     "@hono/zod-validator": "^0.4.3",
+    "@repo/agentic": "workspace:*",
     "@repo/analytics": "workspace:*",
     "@repo/gcs": "workspace:*",
     "@repo/graph": "workspace:*",
@@ -21,6 +23,7 @@
     "@repo/rag": "workspace:*",
     "@repo/shared": "workspace:*",
     "@repo/storage": "workspace:*",
+    "ai": "^6.0.0-beta.164",
     "hono": "^4.7.7",
     "nanoid": "^5.1.5",
     "zod": "^3.24.3"

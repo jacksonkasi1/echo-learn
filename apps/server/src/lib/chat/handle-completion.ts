@@ -1,12 +1,14 @@
 // ** import types
 import type { ChatCompletionRequest } from "@/schema/chat";
 import type { ChatMessage } from "@repo/llm";
+import type { QueryProcessingOptions } from "@repo/agentic";
 
 // ** import lib
 import { generateStreamingResponse, buildSystemPrompt } from "@repo/llm";
 import { retrieveContext } from "@repo/rag";
 import { getUserProfile, updateUserProfile } from "@repo/storage";
 import { updateAnalytics } from "@repo/analytics";
+import { getAgenticRouter } from "@repo/agentic";
 
 // ** import utils
 import { logger } from "@repo/logs";
@@ -115,7 +117,7 @@ export function createCompletionStream(
 }
 
 /**
- * Process chat completion request
+ * Process chat completion request with agentic routing
  * Main orchestration function for RAG-enhanced chat
  */
 export async function processCompletion(
@@ -129,13 +131,17 @@ export async function processCompletion(
   const useRag = body.use_rag;
   const ragTopK = body.rag_top_k;
   const ragMinScore = body.rag_min_score;
+  const enableAgentic = (body as any).enable_agentic !== false; // Default true
+  const enableReranking = (body as any).enable_reranking || false;
+  const enableMultiStep = (body as any).enable_multi_step !== false; // Default true
+  const maxIterations = (body as any).max_iterations || 5;
 
-  logger.info("Processing RAG-enhanced chat request", {
+  logger.info("Processing chat request", {
     userId,
     messageCount: messages.length,
     useRag,
-    ragTopK,
-    ragMinScore,
+    enableAgentic,
+    enableReranking,
   });
 
   // Extract user message
@@ -144,22 +150,173 @@ export async function processCompletion(
     throw new Error("No user message provided");
   }
 
+  // Check if agentic routing is enabled
+  if (enableAgentic && useRag) {
+    return await processAgenticCompletion(
+      userMessage,
+      messages,
+      userId,
+      {
+        maxTokens,
+        temperature,
+        ragTopK,
+        ragMinScore,
+        enableReranking,
+        enableMultiStep,
+        maxIterations,
+      },
+      startTime,
+    );
+  }
+
+  // Fallback to legacy processing
+  return await processLegacyCompletion(
+    userMessage,
+    messages,
+    userId,
+    {
+      maxTokens,
+      temperature,
+      ragTopK,
+      ragMinScore,
+      useRag,
+    },
+    startTime,
+  );
+}
+
+/**
+ * Process completion using agentic router
+ */
+async function processAgenticCompletion(
+  userMessage: string,
+  messages: ChatMessage[],
+  userId: string,
+  options: {
+    maxTokens: number;
+    temperature: number;
+    ragTopK: number;
+    ragMinScore: number;
+    enableReranking: boolean;
+    enableMultiStep: boolean;
+    maxIterations: number;
+  },
+  startTime: number,
+): Promise<CompletionResult> {
+  try {
+    logger.info("Using agentic router for completion", {
+      userId,
+      enableReranking: options.enableReranking,
+      enableMultiStep: options.enableMultiStep,
+    });
+
+    // Get agentic router
+    const router = getAgenticRouter();
+
+    // Build processing options
+    const processingOptions: QueryProcessingOptions = {
+      userId,
+      messages,
+      useRag: true,
+      ragTopK: options.ragTopK,
+      ragMinScore: options.ragMinScore,
+      maxTokens: options.maxTokens,
+      temperature: options.temperature,
+      enableReranking: options.enableReranking,
+      enableMultiStep: options.enableMultiStep,
+      maxIterations: options.maxIterations,
+    };
+
+    // Process query with agentic router
+    const result = await router.processQuery(userMessage, processingOptions);
+
+    logger.info("Agentic processing completed", {
+      userId,
+      queryType: result.classification.type,
+      strategy: result.strategy,
+      chunksRetrieved: result.retrievedChunks.length,
+      reranked: result.reranked,
+      toolCalls: result.toolCalls.length,
+      executionTimeMs: result.executionTimeMs,
+    });
+
+    // Wrap stream with minimal callbacks
+    // NOTE: Analytics/learning progress is now handled by the agent via save_learning_progress tool
+    // This removes automatic overhead on every request - agent decides when to save
+    const wrappedStream = createCompletionStream(
+      streamToAsyncIterable(result.stream!),
+      {
+        onComplete: (_fullResponse) => {
+          // Only update last interaction timestamp (lightweight, ~5ms)
+          // Note: fullResponse available if needed for debugging
+          updateUserProfile(userId, {
+            lastInteraction: new Date().toISOString(),
+          }).catch((err) => {
+            logger.error("Failed to update user profile", err);
+          });
+        },
+        onError: (error) => {
+          logger.error("Completion stream error", error);
+        },
+      },
+    );
+
+    return {
+      stream: wrappedStream,
+      knowledgeChunks: result.retrievedChunks,
+      retrievedSources: result.retrievedSources,
+    };
+  } catch (error) {
+    logger.error("Agentic completion failed, falling back to legacy", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+
+    // Fallback to legacy processing
+    return await processLegacyCompletion(
+      userMessage,
+      messages,
+      userId,
+      {
+        maxTokens: options.maxTokens,
+        temperature: options.temperature,
+        ragTopK: options.ragTopK,
+        ragMinScore: options.ragMinScore,
+        useRag: true,
+      },
+      startTime,
+    );
+  }
+}
+
+/**
+ * Legacy processing (original implementation)
+ */
+async function processLegacyCompletion(
+  userMessage: string,
+  messages: ChatMessage[],
+  userId: string,
+  options: {
+    maxTokens: number;
+    temperature: number;
+    ragTopK: number;
+    ragMinScore: number;
+    useRag: boolean;
+  },
+  startTime: number,
+): Promise<CompletionResult> {
+  logger.info("Using legacy processing", { userId });
+
   // Get user profile for personalization
   const userProfile = await getUserProfile(userId);
-  logger.info("User profile loaded", {
-    userId,
-    level: userProfile.level,
-    questionsAnswered: userProfile.questionsAnswered,
-  });
 
   // Retrieve RAG context if enabled
   let knowledgeChunks: string[] = [];
   let retrievedSources: string[] = [];
 
-  if (useRag) {
+  if (options.useRag) {
     const contextResult = await retrieveRagContext(userMessage, userId, {
-      topK: ragTopK,
-      minScore: ragMinScore,
+      topK: options.ragTopK,
+      minScore: options.ragMinScore,
     });
     knowledgeChunks = contextResult.chunks;
     retrievedSources = contextResult.sources;
@@ -174,17 +331,12 @@ export async function processCompletion(
   // Filter conversation messages
   const conversationMessages = messages.filter((m) => m.role !== "system");
 
-  logger.info("Starting stream generation", {
-    systemPromptLength: systemPrompt.length,
-    contextChunks: knowledgeChunks.length,
-  });
-
   // Generate streaming response
   const { textStream } = await generateStreamingResponse({
     systemPrompt,
     messages: conversationMessages,
-    maxTokens,
-    temperature,
+    maxTokens: options.maxTokens,
+    temperature: options.temperature,
   });
 
   // Create stream with callbacks
@@ -218,4 +370,31 @@ export async function processCompletion(
     knowledgeChunks,
     retrievedSources,
   };
+}
+
+/**
+ * Convert ReadableStream to AsyncIterable
+ */
+async function* streamToAsyncIterable(
+  stream: ReadableStream<Uint8Array>,
+): AsyncIterable<string> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        // Flush any remaining buffered bytes (handles split multibyte characters)
+        const remaining = decoder.decode(undefined, { stream: false });
+        if (remaining) {
+          yield remaining;
+        }
+        break;
+      }
+      yield decoder.decode(value, { stream: true });
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }

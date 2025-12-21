@@ -26,9 +26,9 @@ export interface ContextBudgetConfig {
  * Default context budget configuration
  */
 export const DEFAULT_CONTEXT_BUDGET: ContextBudgetConfig = {
-  maxTokens: 6000,
+  maxTokens: 3000,
   minChunks: 3,
-  maxChunks: 30,
+  maxChunks: 15,
   tokensPerChar: 0.25,
   ensureDiversity: true,
   minSources: 2,
