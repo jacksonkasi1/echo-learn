@@ -384,7 +384,14 @@ async function* streamToAsyncIterable(
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        // Flush any remaining buffered bytes (handles split multibyte characters)
+        const remaining = decoder.decode(undefined, { stream: false });
+        if (remaining) {
+          yield remaining;
+        }
+        break;
+      }
       yield decoder.decode(value, { stream: true });
     }
   } finally {

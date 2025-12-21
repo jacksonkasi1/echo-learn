@@ -1,6 +1,6 @@
 # @repo/agentic
 
-**Phase 5: Agentic RAG System** - Intelligent query routing and tool calling for Echo Learn.
+**Phase 5: Agentic RAG System** - Intelligent query routing and tool calling for Echo-Learn.
 
 ## Overview
 

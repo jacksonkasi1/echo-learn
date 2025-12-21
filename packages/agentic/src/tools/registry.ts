@@ -8,6 +8,9 @@ import type {
 // ** import lib
 import { tool } from "ai";
 
+// ** import tools (static ESM import)
+import { allTools } from "./definitions";
+
 // ** import utils
 import { logger } from "@repo/logs";
 
@@ -248,11 +251,10 @@ export function getToolRegistry(): ToolRegistry {
 export function initializeTools(): void {
   const registry = getToolRegistry();
 
-  // Import and register default tools
-  const { allTools } = require("./definitions");
-
+  // Register all default tools (imported statically at top of file)
+  // Cast to ToolDefinition since allTools contains heterogeneous tool types
   for (const toolDef of allTools) {
-    registry.register(toolDef);
+    registry.register(toolDef as ToolDefinition);
   }
 }
 

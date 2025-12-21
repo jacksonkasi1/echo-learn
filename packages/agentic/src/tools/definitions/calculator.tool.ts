@@ -4,6 +4,7 @@ import { ToolCategory } from "../../types/tools";
 
 // ** import lib
 import { z } from "zod";
+import { evaluate, format } from "mathjs";
 
 // ** import utils
 import { logger } from "@repo/logs";
@@ -14,7 +15,9 @@ import { logger } from "@repo/logs";
 const calculatorInputSchema = z.object({
   expression: z
     .string()
-    .describe("Mathematical expression to evaluate (e.g., '2 + 2', '10 * 5')"),
+    .describe(
+      "Mathematical expression to evaluate (e.g., '2 + 2', '10 * 5', 'sqrt(16)')",
+    ),
   precision: z
     .number()
     .int()
@@ -36,46 +39,50 @@ export interface CalculatorOutput {
 }
 
 /**
- * Safe math expression evaluator
- * Only allows basic arithmetic operations
+ * Safe math expression evaluator using math.js
+ * Supports a wide range of mathematical operations safely
  */
 function evaluateExpression(expr: string): number {
-  // Remove whitespace
-  const cleaned = expr.replace(/\s+/g, "");
-
-  // Only allow numbers and basic operators
-  if (!/^[0-9+\-*/.()]+$/.test(cleaned)) {
-    throw new Error("Expression contains invalid characters");
-  }
-
-  // Use Function constructor for safer evaluation (still not production-ready)
-  // In production, use a proper math parser library like math.js
   try {
-    const result = Function(`"use strict"; return (${cleaned})`)();
+    // math.js safely evaluates expressions without code execution risks
+    // It supports: arithmetic, trigonometry, logarithms, constants (pi, e), etc.
+    const result = evaluate(expr);
+
+    // Ensure result is a number
     if (typeof result !== "number" || !isFinite(result)) {
-      throw new Error("Invalid calculation result");
+      // Handle BigNumber or other math.js types
+      const numResult = Number(result);
+      if (!isFinite(numResult)) {
+        throw new Error("Invalid calculation result");
+      }
+      return numResult;
     }
+
     return result;
   } catch (error) {
-    throw new Error("Failed to evaluate expression");
+    throw new Error(
+      `Failed to evaluate expression: ${error instanceof Error ? error.message : "Invalid expression"}`,
+    );
   }
 }
 
 /**
- * Calculator Tool (Example)
- * Evaluates mathematical expressions
+ * Calculator Tool
+ * Evaluates mathematical expressions using math.js for safe evaluation
  *
- * This is an example tool to demonstrate how easy it is to add new tools.
- * To enable this tool, rename this file to remove '.example' and add it to
- * the allTools array in definitions/index.ts
+ * Supported operations:
+ * - Basic arithmetic: +, -, *, /, ^, %
+ * - Functions: sqrt, sin, cos, tan, log, exp, abs, round, floor, ceil
+ * - Constants: pi, e
+ * - Parentheses for grouping
  */
 export const calculatorTool: ToolDefinition<CalculatorInput, CalculatorOutput> =
   {
     name: "calculator",
     description:
       "Evaluate mathematical expressions and return the result. " +
-      "Supports basic arithmetic operations: addition (+), subtraction (-), " +
-      "multiplication (*), division (/), and parentheses for grouping. " +
+      "Supports: basic arithmetic (+, -, *, /, ^), functions (sqrt, sin, cos, tan, log, exp, abs, round), " +
+      "constants (pi, e), and parentheses for grouping. " +
       "Use this tool when the user asks for calculations or math problems.",
 
     inputSchema: calculatorInputSchema,
@@ -97,11 +104,13 @@ export const calculatorTool: ToolDefinition<CalculatorInput, CalculatorOutput> =
           precision: input.precision,
         });
 
-        // Evaluate the expression
+        // Evaluate the expression using math.js
         const result = evaluateExpression(input.expression);
 
-        // Format the result
-        const formattedResult = result.toFixed(input.precision);
+        // Format the result with specified precision
+        const formattedResult = format(result, {
+          precision: input.precision + 1,
+        });
 
         const executionTime = Date.now() - startTime;
 
@@ -129,22 +138,3 @@ export const calculatorTool: ToolDefinition<CalculatorInput, CalculatorOutput> =
       }
     },
   };
-
-/**
- * To enable this tool:
- *
- * 1. Rename this file from 'calculator.tool.example.ts' to 'calculator.tool.ts'
- *
- * 2. Add to src/tools/definitions/index.ts:
- *    import { calculatorTool } from "./calculator.tool";
- *    export { calculatorTool } from "./calculator.tool";
- *
- * 3. Add to the allTools array:
- *    export const allTools = [
- *      searchRAGTool,
- *      rerankTool,
- *      calculatorTool,  // <-- Add here
- *    ] as const;
- *
- * That's it! The tool is now available system-wide.
- */
