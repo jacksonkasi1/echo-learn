@@ -2,3 +2,4 @@
 node_modules/
 
 gcp-service-account.json
+.env.prod

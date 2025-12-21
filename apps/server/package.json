@@ -7,6 +7,9 @@
     "dev": "bun run --hot src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
     "start": "bun run dist/index.js",
+    "deploy:prod": "./scripts/deploy.sh prod",
+    "deploy:beta": "./scripts/deploy.sh beta",
+    "deploy:sandbox": "./scripts/deploy.sh sandbox",
     "check-types": "tsc --noEmit",
     "lint": "eslint src"
   },
