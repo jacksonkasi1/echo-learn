@@ -1,19 +1,3 @@
-import { Link } from '@tanstack/react-router'
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  BookOpenIcon,
-  CheckIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CopyIcon,
-  PencilIcon,
-  RefreshCwIcon,
-  Square,
-  Volume2Icon,
-  VolumeXIcon,
-} from 'lucide-react'
-
 import {
   ActionBarPrimitive,
   AssistantIf,
@@ -23,14 +7,38 @@ import {
   MessagePrimitive,
   ThreadPrimitive,
 } from '@assistant-ui/react'
-
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ClipboardList,
+  CopyIcon,
+  GraduationCap,
+  MessageSquare,
+  PencilIcon,
+  RefreshCwIcon,
+  Square,
+  Volume2Icon,
+  VolumeXIcon,
+} from 'lucide-react'
 import type { FC } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { FollowUpSuggestions } from '@/components/assistant-ui/followup-suggestions'
+
 import { MarkdownText } from '@/components/assistant-ui/markdown-text'
 import { ToolFallback } from '@/components/assistant-ui/tool-fallback'
 import { TooltipIconButton } from '@/components/assistant-ui/tooltip-icon-button'
-import { ModeToggle } from '@/components/mode-toggle'
+import type { ChatMode } from '@/components/learning/LearningContext'
+import { useLearningContext } from '@/components/learning/LearningContext'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 import { cn } from '@/lib/utils'
 
@@ -42,20 +50,6 @@ export const Thread: FC = () => {
         ['--thread-max-width' as string]: '44rem',
       }}
     >
-      <div className="absolute right-4 top-4 z-10 flex flex-col gap-2">
-        <Link to="/knowledge">
-          <Button variant="ghost" size="icon" title="Knowledge Base">
-            <BookOpenIcon />
-          </Button>
-        </Link>
-        <Link to="/voice">
-          <Button variant="ghost" size="icon" title="Voice Mode">
-            <Volume2Icon />
-          </Button>
-        </Link>
-        <ModeToggle />
-      </div>
-
       <ThreadPrimitive.Viewport
         turnAnchor="top"
         className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
@@ -114,30 +108,95 @@ const ThreadWelcome: FC = () => {
 }
 
 const ThreadSuggestions: FC = () => {
+  const { suggestions, suggestionsLoading, hasContent, mode } =
+    useLearningContext()
+
+  // Show loading skeleton
+  if (suggestionsLoading) {
+    return (
+      <div className="aui-thread-welcome-suggestions grid w-full @md:grid-cols-2 gap-2 pb-4">
+        {[...Array(4)].map((_, index) => (
+          <div
+            key={`skeleton-${index}`}
+            className="h-20 animate-pulse rounded-3xl border bg-muted/30"
+          />
+        ))}
+      </div>
+    )
+  }
+
+  // If no content (new user), show mode-specific empty state
+  if (!hasContent) {
+    const emptyMessages = {
+      learn: 'Upload study materials to get personalized learning suggestions',
+      chat: 'Upload materials to get topic suggestions, or ask anything!',
+      test: 'Upload study materials to get personalized quiz suggestions',
+    }
+    return (
+      <div className="aui-thread-welcome-suggestions flex w-full flex-col items-center gap-4 pb-4 text-center">
+        <p className="text-muted-foreground">{emptyMessages[mode]}</p>
+      </div>
+    )
+  }
+
+  // If we have dynamic suggestions, show them
+  if (suggestions.length > 0) {
+    return (
+      <div className="aui-thread-welcome-suggestions grid w-full @md:grid-cols-2 gap-2 pb-4">
+        {suggestions.map((suggestion, index) => (
+          <div
+            key={`suggested-action-${suggestion.conceptId || suggestion.title}-${index}`}
+            className="aui-thread-welcome-suggestion-display fade-in slide-in-from-bottom-4 @md:nth-[n+3]:block nth-[n+3]:hidden animate-in fill-mode-both duration-300 ease-out"
+            style={{ animationDelay: `${index * 50}ms` }}
+          >
+            <ThreadPrimitive.Suggestion prompt={suggestion.text} send asChild>
+              <Button
+                variant="ghost"
+                className="aui-thread-welcome-suggestion h-auto w-full flex-1 @md:flex-col flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm dark:hover:bg-accent/60"
+                aria-label={suggestion.text}
+              >
+                <span className="aui-thread-welcome-suggestion-text-1 w-full font-medium line-clamp-1 break-words">
+                  {suggestion.title ||
+                    suggestion.text.split(' ').slice(0, 4).join(' ') + '...'}
+                </span>
+                <span className="aui-thread-welcome-suggestion-text-2 w-full text-muted-foreground line-clamp-2 break-words">
+                  {suggestion.text}
+                </span>
+              </Button>
+            </ThreadPrimitive.Suggestion>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Fallback to mode-specific default suggestions when API returns empty
+  const defaultSuggestionsByMode = {
+    learn: [
+      { title: 'Get started', action: 'How do I get started with learning?' },
+      { title: 'Study tips', action: 'What are effective study techniques?' },
+      { title: 'Learning path', action: 'Help me create a learning plan' },
+      { title: 'Upload help', action: 'How do I upload study materials?' },
+    ],
+    chat: [
+      { title: 'Ask anything', action: 'What can you help me with?' },
+      { title: 'Get help', action: 'I need help with something' },
+      { title: 'Explore topics', action: 'What topics can we discuss?' },
+      { title: 'Tell me more', action: 'Tell me something interesting' },
+    ],
+    test: [
+      { title: 'Start quiz', action: 'Start a general knowledge quiz' },
+      { title: 'Practice test', action: 'Give me a practice test' },
+      { title: 'Quick questions', action: 'Ask me some quick questions' },
+      { title: 'Challenge me', action: 'Give me a challenging quiz' },
+    ],
+  }
+
+  const defaultSuggestions = defaultSuggestionsByMode[mode]
+
   return (
     <div className="aui-thread-welcome-suggestions grid w-full @md:grid-cols-2 gap-2 pb-4">
-      {[
-        {
-          title: "What's the weather",
-          label: 'in San Francisco?',
-          action: "What's the weather in San Francisco?",
-        },
-        {
-          title: 'Explain React hooks',
-          label: 'like useState and useEffect',
-          action: 'Explain React hooks like useState and useEffect',
-        },
-        {
-          title: 'Write a SQL query',
-          label: 'to find top customers',
-          action: 'Write a SQL query to find top customers',
-        },
-        {
-          title: 'Create a meal plan',
-          label: 'for healthy weight loss',
-          action: 'Create a meal plan for healthy weight loss',
-        },
-      ].map((suggestedAction, index) => (
+      {defaultSuggestions.map((suggestedAction, index) => (
         <div
           key={`suggested-action-${suggestedAction.title}-${index}`}
           className="aui-thread-welcome-suggestion-display fade-in slide-in-from-bottom-4 @md:nth-[n+3]:block nth-[n+3]:hidden animate-in fill-mode-both duration-300 ease-out"
@@ -157,7 +216,7 @@ const ThreadSuggestions: FC = () => {
                 {suggestedAction.title}
               </span>
               <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground">
-                {suggestedAction.label}
+                {suggestedAction.action}
               </span>
             </Button>
           </ThreadPrimitive.Suggestion>
@@ -168,34 +227,101 @@ const ThreadSuggestions: FC = () => {
 }
 
 const Composer: FC = () => {
+  const { mode } = useLearningContext()
+
+  const placeholders = {
+    learn: 'Ask a question to start learning...',
+    chat: 'Ask anything (off the record)...',
+    test: 'Ready for a quiz? Type "start test"...',
+  }
+
   return (
     <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
       <div className="flex w-full flex-col rounded-3xl border border-input bg-background px-1 pt-2 shadow-xs outline-none transition-[color,box-shadow] has-[textarea:focus-visible]:border-ring has-[textarea:focus-visible]:ring-[3px] has-[textarea:focus-visible]:ring-ring/50 dark:bg-background">
         <ComposerPrimitive.Input
-          placeholder="Send a message..."
+          placeholder={placeholders[mode]}
           className="aui-composer-input mb-1 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pt-1.5 pb-3 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-0"
           rows={1}
           autoFocus
           aria-label="Message input"
         />
-        <ComposerAction />
+        <ComposerToolbar />
       </div>
     </ComposerPrimitive.Root>
   )
 }
 
+const ComposerToolbar: FC = () => {
+  return (
+    <div className="flex items-center justify-between px-2 pb-2">
+      <div className="flex items-center gap-1">
+        <ComposerModeSelector />
+      </div>
+      <ComposerAction />
+    </div>
+  )
+}
+
+const ComposerModeSelector: FC = () => {
+  const { mode, setMode } = useLearningContext()
+
+  const MODES: Record<ChatMode, { label: string; icon: React.ReactNode }> = {
+    learn: {
+      label: 'Learn',
+      icon: <GraduationCap className="size-4" />,
+    },
+    chat: {
+      label: 'Chat',
+      icon: <MessageSquare className="size-4" />,
+    },
+    test: {
+      label: 'Test',
+      icon: <ClipboardList className="size-4" />,
+    },
+  }
+
+  const currentMode = MODES[mode]
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-2 px-2 text-muted-foreground hover:text-foreground"
+        >
+          {currentMode.icon}
+          <span className="text-xs font-medium">{currentMode.label}</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {(Object.keys(MODES) as Array<ChatMode>).map((key) => (
+          <DropdownMenuItem
+            key={key}
+            onClick={() => setMode(key)}
+            className="gap-2"
+          >
+            {MODES[key].icon}
+            <span>{MODES[key].label}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 const ComposerAction: FC = () => {
   return (
-    <div className="aui-composer-action-wrapper relative mx-1 mt-2 mb-2 flex items-center justify-end">
+    <div className="aui-composer-action-wrapper flex items-center justify-end">
       <AssistantIf condition={({ thread }) => !thread.isRunning}>
         <ComposerPrimitive.Send asChild>
           <TooltipIconButton
             tooltip="Send message"
-            side="bottom"
+            side="top"
             type="submit"
             variant="default"
             size="icon"
-            className="aui-composer-send size-[34px] rounded-full p-1"
+            className="aui-composer-send size-8.5 rounded-full p-1"
             aria-label="Send message"
           >
             <ArrowUpIcon className="aui-composer-send-icon size-5" />
@@ -209,7 +335,7 @@ const ComposerAction: FC = () => {
             type="button"
             variant="default"
             size="icon"
-            className="aui-composer-cancel size-[34px] rounded-full border border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90"
+            className="aui-composer-cancel size-8.5 rounded-full border border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90"
             aria-label="Stop generating"
           >
             <Square className="aui-composer-cancel-icon size-3.5 fill-white dark:fill-black" />
@@ -250,6 +376,13 @@ const AssistantMessage: FC = () => {
         <BranchPicker />
         <AssistantActionBar />
       </div>
+
+      {/* Follow-up suggestions - only shown on last message when not running */}
+      <AssistantIf condition={({ thread }) => !thread.isRunning}>
+        <div className="mx-2">
+          <FollowUpSuggestions />
+        </div>
+      </AssistantIf>
     </MessagePrimitive.Root>
   )
 }
@@ -332,7 +465,7 @@ const EditComposer: FC = () => {
     <MessagePrimitive.Root className="aui-edit-composer-wrapper mx-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 px-2">
       <ComposerPrimitive.Root className="aui-edit-composer-root ml-auto flex w-full max-w-7/8 flex-col rounded-xl bg-muted">
         <ComposerPrimitive.Input
-          className="aui-edit-composer-input flex min-h-[60px] w-full resize-none bg-transparent p-4 text-foreground outline-none"
+          className="aui-edit-composer-input flex min-h-15 w-full resize-none bg-transparent p-4 text-foreground outline-none"
           autoFocus
         />
 

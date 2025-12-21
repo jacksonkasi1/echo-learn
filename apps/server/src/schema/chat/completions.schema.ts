@@ -5,6 +5,13 @@ import { z } from "zod";
 import { DEFAULT_RAG_CONFIG } from "@repo/shared";
 
 /**
+ * Chat mode determines how the system processes interactions
+ */
+export const chatModeSchema = z
+  .enum(["learn", "chat", "test"])
+  .default("learn");
+
+/**
  * Message schema for chat completions
  */
 export const messageSchema = z.object({
@@ -33,6 +40,7 @@ export const chatCompletionSchema = z
     max_tokens: z.number().optional().default(1024),
     temperature: z.number().optional().default(0.7),
     stream: z.boolean().optional().default(true),
+    mode: chatModeSchema.optional(), // NEW: Chat mode (learn/chat/test)
   })
   .merge(ragOptionsSchema);
 
@@ -40,3 +48,4 @@ export const chatCompletionSchema = z
 export type ChatCompletionRequest = z.infer<typeof chatCompletionSchema>;
 export type Message = z.infer<typeof messageSchema>;
 export type RagOptions = z.infer<typeof ragOptionsSchema>;
+export type ChatModeType = z.infer<typeof chatModeSchema>;

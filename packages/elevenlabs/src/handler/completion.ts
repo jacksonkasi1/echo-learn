@@ -32,6 +32,121 @@ function extractUserMessage(messages: ChatMessage[]): string | null {
 }
 
 /**
+ * Markers that indicate we might be in the middle of a pattern to filter
+ * If text ends with any of these, we should buffer more before emitting
+ */
+const PARTIAL_PATTERN_STARTS = [
+  "[",
+  "[Tool",
+  "[Tool ",
+  "[Tool Call",
+  "[Tool Call:",
+  "<!--",
+  "<!--TOOL",
+  "<!--TOOL_UI",
+  "```",
+];
+
+/**
+ * Check if text might be a partial pattern that needs more content
+ */
+function mightBePartialPattern(text: string): boolean {
+  const trimmed = text.trimEnd();
+  // Check if ends with opening bracket or partial marker
+  for (const start of PARTIAL_PATTERN_STARTS) {
+    if (trimmed.endsWith(start)) return true;
+  }
+  // Check for unclosed brackets at the end
+  const lastOpenBracket = trimmed.lastIndexOf("[");
+  const lastCloseBracket = trimmed.lastIndexOf("]");
+  if (lastOpenBracket > lastCloseBracket) return true;
+
+  // Check for unclosed HTML comment
+  const lastCommentOpen = trimmed.lastIndexOf("<!--");
+  const lastCommentClose = trimmed.lastIndexOf("-->");
+  if (lastCommentOpen > lastCommentClose) return true;
+
+  // Check for unclosed code block
+  const codeBlockMatches = trimmed.match(/```/g);
+  if (codeBlockMatches && codeBlockMatches.length % 2 !== 0) return true;
+
+  return false;
+}
+
+/**
+ * Filter out tool calls, markers, and code from text for voice output
+ * This ensures clean, speakable text for TTS
+ */
+function filterVoiceText(text: string): string {
+  let filtered = text;
+
+  // Remove Tool UI markers injected by the agentic system
+  filtered = filtered.replace(/<!--TOOL_UI_START:[\s\S]*?:TOOL_UI_END-->/g, "");
+
+  // Remove LLM-generated tool call syntax (various formats)
+  // Pattern: [Tool Call: function_name({...})]
+  filtered = filtered.replace(/\[Tool Call:\s*\w+\([^)]*\)\]/g, "");
+  filtered = filtered.replace(/\[Tool Call:[^\]]*\]/g, "");
+
+  // Remove function call syntax that LLM might generate
+  filtered = filtered.replace(/\[present_quiz_question\([^\]]*\)\]/g, "");
+  filtered = filtered.replace(/\[save_learning_progress\([^\]]*\)\]/g, "");
+  filtered = filtered.replace(/\[search_rag\([^\]]*\)\]/g, "");
+  filtered = filtered.replace(/\[generate_adaptive_question\([^\]]*\)\]/g, "");
+
+  // Generic tool/function patterns like [function_name({...})]
+  filtered = filtered.replace(/\[\w+_\w+\([^\]]*\)\]/g, "");
+
+  // Remove code blocks that shouldn't be spoken
+  filtered = filtered.replace(/```[\s\S]*?```/g, "");
+
+  // Clean up extra whitespace/newlines left behind
+  filtered = filtered.replace(/\n{3,}/g, "\n\n").trim();
+
+  return filtered;
+}
+
+/**
+ * Smart streaming filter for voice output
+ * Buffers content when partial patterns are detected to avoid speaking tool calls
+ */
+class VoiceStreamFilter {
+  private buffer: string = "";
+  private readonly maxBufferSize: number = 500; // Max chars to buffer before forcing emit
+
+  /**
+   * Process incoming text chunk and return filtered text to emit
+   * May return empty string if buffering for pattern completion
+   */
+  processChunk(chunk: string): string {
+    this.buffer += chunk;
+
+    // If buffer might contain partial pattern, wait for more
+    if (
+      mightBePartialPattern(this.buffer) &&
+      this.buffer.length < this.maxBufferSize
+    ) {
+      return "";
+    }
+
+    // Filter and emit the buffer
+    const filtered = filterVoiceText(this.buffer);
+    this.buffer = "";
+    return filtered;
+  }
+
+  /**
+   * Flush any remaining buffered content
+   */
+  flush(): string {
+    if (this.buffer.length === 0) return "";
+    const filtered = filterVoiceText(this.buffer);
+    this.buffer = "";
+    return filtered;
+  }
+}
+
+/**
  * Convert ReadableStream to AsyncIterable
  */
 async function* streamToAsyncIterable(
@@ -84,13 +199,26 @@ function createSSEStreamFromChunks(
           isFirst = false;
         }
 
-        // Stream the actual content
+        // Use smart streaming filter for voice output
+        const filter = new VoiceStreamFilter();
+
         for await (const text of chunks) {
           if (text) {
-            const chunk = createSSEChunk(text, { isFirst, model });
-            controller.enqueue(encoder.encode(formatSSEChunk(chunk)));
-            isFirst = false;
+            const filtered = filter.processChunk(text);
+            if (filtered && filtered.length > 0) {
+              const chunk = createSSEChunk(filtered, { isFirst, model });
+              controller.enqueue(encoder.encode(formatSSEChunk(chunk)));
+              isFirst = false;
+            }
           }
+        }
+
+        // Flush any remaining buffered content
+        const remaining = filter.flush();
+        if (remaining && remaining.length > 0) {
+          const chunk = createSSEChunk(remaining, { isFirst, model });
+          controller.enqueue(encoder.encode(formatSSEChunk(chunk)));
+          isFirst = false;
         }
 
         // Send final chunk with finish_reason
@@ -184,6 +312,7 @@ export async function processElevenLabsCompletion(
     const router = getAgenticRouter();
 
     // Process query through agentic router
+    // Pass isVoiceMode flag so test mode uses verbal questions instead of UI tools
     const result = await router.processQuery(userMessage, {
       userId,
       messages,
@@ -195,6 +324,7 @@ export async function processElevenLabsCompletion(
       enableReranking: false, // Keep low latency for voice
       enableMultiStep: true,
       maxIterations: 3, // Limit iterations for voice latency
+      isVoiceMode: true, // Voice mode: don't use interactive UI tools
     });
 
     const processingTimeMs = Date.now() - startTime;
@@ -231,7 +361,9 @@ export async function processElevenLabsCompletion(
     }
 
     // Fallback: create stream from response text
-    const textStream = createTextStream(result.response || "I apologize, but I couldn't generate a response.");
+    const textStream = createTextStream(
+      result.response || "I apologize, but I couldn't generate a response.",
+    );
 
     return {
       stream: textStream,
@@ -268,11 +400,17 @@ function createTextStream(text: string): ReadableStream<Uint8Array> {
   return new ReadableStream({
     start(controller) {
       // First chunk with role
-      const firstChunk = createSSEChunk(text, { isFirst: true, model: "echo-learn-v1" });
+      const firstChunk = createSSEChunk(text, {
+        isFirst: true,
+        model: "echo-learn-v1",
+      });
       controller.enqueue(encoder.encode(formatSSEChunk(firstChunk)));
 
       // Final chunk
-      const finalChunk = createSSEChunk("", { isFinal: true, model: "echo-learn-v1" });
+      const finalChunk = createSSEChunk("", {
+        isFinal: true,
+        model: "echo-learn-v1",
+      });
       controller.enqueue(encoder.encode(formatSSEChunk(finalChunk)));
 
       // Done signal
@@ -336,7 +474,9 @@ export function validateElevenLabsRequest(request: unknown): {
  */
 export function extractUserId(request: Record<string, unknown>): string {
   // Check elevenlabs_extra_body first
-  const extraBody = request.elevenlabs_extra_body as Record<string, unknown> | undefined;
+  const extraBody = request.elevenlabs_extra_body as
+    | Record<string, unknown>
+    | undefined;
   if (extraBody?.user_id && typeof extraBody.user_id === "string") {
     return extraBody.user_id;
   }

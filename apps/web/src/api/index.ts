@@ -64,3 +64,22 @@ export type {
   KnowledgeGraph,
   KnowledgeGraphStats,
 } from './user'
+
+// Export learning API
+export { learningApi } from './learning'
+export type { LearningAnalytics } from './learning'
+
+// Export suggestions API
+export {
+  suggestionsApi,
+  getInitialSuggestions,
+  getFollowUpSuggestions,
+  getTopics,
+} from './suggestions'
+export type {
+  Suggestion,
+  SuggestionType,
+  InitialSuggestionsResponse,
+  FollowUpSuggestionsResponse,
+  TopicsResponse,
+} from './suggestions'
