@@ -7,6 +7,13 @@ import type {
   ToolCallInfo,
 } from "./types/query";
 
+/**
+ * Tool UI marker prefix - used to inject tool call data into the stream
+ * Frontend should parse these markers and render appropriate Tool UI components
+ */
+const TOOL_UI_MARKER_START = "\n<!--TOOL_UI_START:";
+const TOOL_UI_MARKER_END = ":TOOL_UI_END-->\n";
+
 // ** import lib
 import { ToolLoopAgent, stepCountIs } from "ai";
 import { google } from "@ai-sdk/google";
@@ -95,6 +102,8 @@ function buildModeSystemPrompt(
 - **rerank_documents**: Re-rank search results (use only if 15+ results need refinement)
 - **calculator**: Evaluate math expressions
 ${mode !== "chat" ? "- **save_learning_progress**: Save user's learning progress to memory (use sparingly!)" : ""}
+${mode === "test" ? "- **generate_adaptive_question**: Generate a question based on user's knowledge graph" : ""}
+${mode === "test" ? "- **present_quiz_question**: Present an interactive multiple choice question (renders clickable options)" : ""}
 
 ## IMPORTANT: Dynamic Search Depth (topK)
 
@@ -289,6 +298,9 @@ export async function executeUnifiedAgenticStrategy(
         : [...conversationMessages, { role: "user" as const, content: query }],
     });
 
+    // Collect tool UI markers to inject into stream
+    const toolUIMarkers: string[] = [];
+
     // Track tool calls from steps
     const stepsPromise = result.steps.then((steps) => {
       for (const step of steps) {
@@ -316,6 +328,21 @@ export async function executeUnifiedAgenticStrategy(
               const ragResult = toolResult.output as any;
               if (ragResult.chunks) chunks.push(...ragResult.chunks);
               if (ragResult.sources) sources.push(...ragResult.sources);
+            }
+
+            // Check for Tool UI tools and create markers
+            if (tc.toolName === "present_quiz_question" && toolResult?.output) {
+              const marker = {
+                toolName: tc.toolName,
+                toolCallId: tc.toolCallId,
+                args: tc.input,
+              };
+              toolUIMarkers.push(
+                `${TOOL_UI_MARKER_START}${JSON.stringify(marker)}${TOOL_UI_MARKER_END}`,
+              );
+              logger.info("Tool UI marker created for present_quiz_question", {
+                toolCallId: tc.toolCallId,
+              });
             }
           }
         }
@@ -349,6 +376,7 @@ export async function executeUnifiedAgenticStrategy(
     );
 
     // Convert textStream to ReadableStream<Uint8Array>
+    // Also inject Tool UI markers after the text stream completes
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -358,6 +386,13 @@ export async function executeUnifiedAgenticStrategy(
           }
           // Wait for steps and cost to be processed
           await costPromise;
+
+          // Inject Tool UI markers at the end of the stream
+          // Frontend will parse these and render Tool UI components
+          for (const marker of toolUIMarkers) {
+            controller.enqueue(encoder.encode(marker));
+          }
+
           controller.close();
         } catch (err) {
           controller.error(err);
