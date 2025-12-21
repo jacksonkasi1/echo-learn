@@ -1,4 +1,9 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import {
+  HeadContent,
+  Scripts,
+  createRootRoute,
+  useLocation,
+} from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import appCss from '../styles.css?url'
@@ -66,11 +71,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
  */
 function VoiceWrapper({ children }: { children: React.ReactNode }) {
   const userId = useUserId()
+  const location = useLocation()
+  const isVoicePage = location.pathname === '/voice'
 
   return (
     <VoiceConversationProvider userId={userId}>
       {children}
-      <FloatingVoice />
+      {!isVoicePage && <FloatingVoice />}
     </VoiceConversationProvider>
   )
 }
