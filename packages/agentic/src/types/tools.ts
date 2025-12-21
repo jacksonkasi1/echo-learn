@@ -123,6 +123,7 @@ export enum ToolCategory {
   TRANSFORMATION = "transformation",
   EXTERNAL_API = "external_api",
   INTERNAL = "internal",
+  MEMORY = "memory",
 }
 
 /**

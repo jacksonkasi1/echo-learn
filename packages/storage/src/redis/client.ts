@@ -2,8 +2,8 @@
 import type {
   FileMetadata,
   UserProfile,
-  KnowledgeGraph,
   InteractionLog,
+  KnowledgeGraph,
 } from "@repo/shared";
 
 // ** import lib
@@ -11,6 +11,30 @@ import { Redis } from "@upstash/redis";
 
 // ** import utils
 import { logger } from "@repo/logs";
+
+// ===========================================
+// In-Memory Cache for User Profiles
+// ===========================================
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const profileCache = new Map<string, CacheEntry<UserProfile>>();
+const CACHE_TTL = 30000; // 30 seconds cache TTL
+
+/**
+ * Clear expired cache entries periodically
+ */
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of profileCache.entries()) {
+    if (now - entry.timestamp > CACHE_TTL) {
+      profileCache.delete(key);
+    }
+  }
+}, 60000); // Clean every minute
 
 // Initialize Upstash Redis client
 export const redis = new Redis({
@@ -27,7 +51,7 @@ export const redis = new Redis({
  */
 export async function setFileMetadata(
   fileId: string,
-  metadata: FileMetadata
+  metadata: FileMetadata,
 ): Promise<void> {
   try {
     await redis.set(`file:${fileId}:metadata`, JSON.stringify(metadata));
@@ -42,7 +66,7 @@ export async function setFileMetadata(
  * Get file metadata from Redis
  */
 export async function getFileMetadata(
-  fileId: string
+  fileId: string,
 ): Promise<FileMetadata | null> {
   try {
     const data = await redis.get<string>(`file:${fileId}:metadata`);
@@ -60,7 +84,7 @@ export async function getFileMetadata(
 export async function updateFileStatus(
   fileId: string,
   status: FileMetadata["status"],
-  error?: string
+  error?: string,
 ): Promise<void> {
   try {
     const metadata = await getFileMetadata(fileId);
@@ -106,7 +130,7 @@ export async function deleteFileMetadata(fileId: string): Promise<void> {
  */
 export async function addFileToUser(
   userId: string,
-  fileId: string
+  fileId: string,
 ): Promise<void> {
   try {
     await redis.sadd(`user:${userId}:files`, fileId);
@@ -122,7 +146,7 @@ export async function addFileToUser(
  */
 export async function removeFileFromUser(
   userId: string,
-  fileId: string
+  fileId: string,
 ): Promise<void> {
   try {
     await redis.srem(`user:${userId}:files`, fileId);
@@ -183,12 +207,23 @@ const DEFAULT_PROFILE: Omit<UserProfile, "userId" | "createdAt"> = {
 
 /**
  * Get user profile, creating default if not exists
+ * Uses in-memory cache with 30s TTL to reduce Redis calls
  */
 export async function getUserProfile(userId: string): Promise<UserProfile> {
   try {
+    // Check in-memory cache first
+    const cached = profileCache.get(userId);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.data;
+    }
+
+    // Fetch from Redis
     const data = await redis.get<string>(`user:${userId}:profile`);
     if (data) {
-      return typeof data === "string" ? JSON.parse(data) : data;
+      const profile = typeof data === "string" ? JSON.parse(data) : data;
+      // Cache the result
+      profileCache.set(userId, { data: profile, timestamp: Date.now() });
+      return profile;
     }
 
     // Create default profile
@@ -200,6 +235,8 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
     };
 
     await redis.set(`user:${userId}:profile`, JSON.stringify(profile));
+    // Cache the new profile
+    profileCache.set(userId, { data: profile, timestamp: Date.now() });
     return profile;
   } catch (error) {
     logger.error(`Failed to get user profile: ${userId}`, error);
@@ -212,7 +249,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
  */
 export async function updateUserProfile(
   userId: string,
-  updates: Partial<UserProfile>
+  updates: Partial<UserProfile>,
 ): Promise<UserProfile> {
   try {
     const current = await getUserProfile(userId);
@@ -224,6 +261,10 @@ export async function updateUserProfile(
     };
 
     await redis.set(`user:${userId}:profile`, JSON.stringify(updated));
+
+    // Invalidate cache so next read gets fresh data
+    profileCache.delete(userId);
+
     return updated;
   } catch (error) {
     logger.error(`Failed to update user profile: ${userId}`, error);
@@ -236,7 +277,7 @@ export async function updateUserProfile(
  */
 export async function markTopicCovered(
   userId: string,
-  topic: string
+  topic: string,
 ): Promise<void> {
   try {
     const profile = await getUserProfile(userId);
@@ -258,7 +299,7 @@ export async function markTopicCovered(
  * Get user's knowledge graph
  */
 export async function getKnowledgeGraph(
-  userId: string
+  userId: string,
 ): Promise<KnowledgeGraph> {
   try {
     const data = await redis.get<string>(`user:${userId}:graph`);
@@ -277,7 +318,7 @@ export async function getKnowledgeGraph(
  */
 export async function saveKnowledgeGraph(
   userId: string,
-  graph: KnowledgeGraph
+  graph: KnowledgeGraph,
 ): Promise<void> {
   try {
     await redis.set(`user:${userId}:graph`, JSON.stringify(graph));
@@ -319,14 +360,14 @@ export async function logInteraction(log: InteractionLog): Promise<void> {
  */
 export async function getRecentInteractions(
   userId: string,
-  limit = 50
+  limit = 50,
 ): Promise<InteractionLog[]> {
   try {
     const key = `user:${userId}:interactions`;
     const results = await redis.zrange(key, -limit, -1);
 
     return results.map((item) =>
-      typeof item === "string" ? JSON.parse(item) : item
+      typeof item === "string" ? JSON.parse(item) : item,
     );
   } catch (error) {
     logger.error(`Failed to get recent interactions: ${userId}`, error);
@@ -344,13 +385,13 @@ export async function getRecentInteractions(
 export async function cacheOcrResult(
   fileId: string,
   result: unknown,
-  ttlSeconds = 3600
+  ttlSeconds = 3600,
 ): Promise<void> {
   try {
     await redis.setex(
       `cache:ocr:${fileId}`,
       ttlSeconds,
-      JSON.stringify(result)
+      JSON.stringify(result),
     );
   } catch (error) {
     logger.error(`Failed to cache OCR result: ${fileId}`, error);
@@ -380,7 +421,7 @@ export async function getCachedOcrResult<T>(fileId: string): Promise<T | null> {
 export async function setCache(
   key: string,
   value: unknown,
-  ttlSeconds = 3600
+  ttlSeconds = 3600,
 ): Promise<void> {
   try {
     await redis.setex(`cache:${key}`, ttlSeconds, JSON.stringify(value));

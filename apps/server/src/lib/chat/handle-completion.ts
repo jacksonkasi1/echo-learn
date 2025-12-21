@@ -240,23 +240,15 @@ async function processAgenticCompletion(
       executionTimeMs: result.executionTimeMs,
     });
 
-    // Wrap stream with analytics callbacks
+    // Wrap stream with minimal callbacks
+    // NOTE: Analytics/learning progress is now handled by the agent via save_learning_progress tool
+    // This removes automatic overhead on every request - agent decides when to save
     const wrappedStream = createCompletionStream(
       streamToAsyncIterable(result.stream!),
       {
-        onComplete: (fullResponse) => {
-          // Update analytics asynchronously
-          updateAnalytics({
-            userId,
-            query: userMessage,
-            response: fullResponse,
-            retrievedChunks: result.retrievedChunks,
-            processingTimeMs: Date.now() - startTime,
-          }).catch((err) => {
-            logger.error("Failed to update analytics", err);
-          });
-
-          // Update user's last interaction
+        onComplete: (_fullResponse) => {
+          // Only update last interaction timestamp (lightweight, ~5ms)
+          // Note: fullResponse available if needed for debugging
           updateUserProfile(userId, {
             lastInteraction: new Date().toISOString(),
           }).catch((err) => {

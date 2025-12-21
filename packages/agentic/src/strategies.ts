@@ -119,6 +119,7 @@ export async function executeUnifiedAgenticStrategy(
   - Parameter: query (search terms)
 - **rerank_documents**: Re-rank search results (use only if 15+ results need refinement)
 - **calculator**: Evaluate math expressions
+- **save_learning_progress**: Save user's learning progress to memory (use sparingly!)
 
 ## IMPORTANT: Dynamic Search Depth (topK)
 
@@ -153,7 +154,25 @@ Adjust topK based on what the user is asking:
 - Be direct and informative - share actual content you found
 - Structure your response clearly (use headings, lists when helpful)
 - If search returns nothing relevant, say so and suggest what the user could upload
-- For training/onboarding requests, provide a structured learning path`;
+- For training/onboarding requests, provide a structured learning path
+
+## When to Save Learning Progress (save_learning_progress tool)
+
+**ONLY call save_learning_progress when meaningful learning occurred:**
+
+| Situation | Action | Example |
+|-----------|--------|---------|
+| Completed training on a topic | mark_topic_learned | After "Train me on pricing" → topics=["pricing", "plans"] |
+| User struggles/gets confused | mark_topic_weak | User asks same thing 3 times → topics=["integrations"] |
+| User demonstrates mastery | mark_topic_strong | Correct quiz answer → topics=["product features"] |
+| Long learning session ends | log_session_summary | After 10+ exchanges on a topic |
+| Major milestone reached | update_level | After completing full product training |
+
+**DO NOT call save_learning_progress for:**
+- Simple Q&A ("Who is X?" → no need to save)
+- Quick lookups ("What's the price?" → no need to save)
+- Casual conversation
+- Single questions about a topic`;
 
     // Create agent with tools
     const agent = createAgent(systemPrompt, tools);
