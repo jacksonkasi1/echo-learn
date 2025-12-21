@@ -183,6 +183,22 @@
         "typescript": "^5.7.2",
       },
     },
+    "packages/elevenlabs": {
+      "name": "@repo/elevenlabs",
+      "version": "1.0.0",
+      "dependencies": {
+        "@repo/agentic": "workspace:*",
+        "@repo/llm": "workspace:*",
+        "@repo/logs": "workspace:*",
+        "@repo/rag": "workspace:*",
+        "@repo/shared": "workspace:*",
+        "@repo/storage": "workspace:*",
+      },
+      "devDependencies": {
+        "@repo/typescript-config": "workspace:*",
+        "typescript": "^5.7.2",
+      },
+    },
     "packages/eslint-config": {
       "name": "@repo/eslint-config",
       "version": "0.0.0",
@@ -930,6 +946,8 @@
     "@repo/agentic": ["@repo/agentic@workspace:packages/agentic"],
 
     "@repo/analytics": ["@repo/analytics@workspace:packages/analytics"],
+
+    "@repo/elevenlabs": ["@repo/elevenlabs@workspace:packages/elevenlabs"],
 
     "@repo/eslint-config": ["@repo/eslint-config@workspace:packages/eslint-config"],
 
