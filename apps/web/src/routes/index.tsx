@@ -1,5 +1,5 @@
-import { BookOpen, Database, FileText } from 'lucide-react'
 import { createFileRoute } from '@tanstack/react-router'
+import { Database, FileText } from 'lucide-react'
 
 import type { RagInfo } from '@/components/MyRuntimeProvider'
 import { Thread } from '@/components/assistant-ui/thread'
@@ -7,7 +7,6 @@ import {
   MyRuntimeProvider,
   useRagInfoState,
 } from '@/components/MyRuntimeProvider'
-import { useUserId } from '@/lib/user-context'
 
 export const Route = createFileRoute('/')({ component: App })
 
@@ -35,18 +34,6 @@ function RagInfoDisplay({ ragInfo }: { ragInfo: RagInfo }) {
   )
 }
 
-// User info display component
-function UserInfoDisplay({ userId }: { userId: string }) {
-  return (
-    <div className="absolute bottom-24 right-4 z-10 flex items-center gap-2 rounded-lg border bg-background/95 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
-      <BookOpen className="size-3.5" />
-      <span className="max-w-32 truncate" title={userId}>
-        {userId.replace('user_', '').slice(0, 12)}...
-      </span>
-    </div>
-  )
-}
-
 function ChatContent({
   onRagInfo,
   ragInfo,
@@ -54,14 +41,11 @@ function ChatContent({
   onRagInfo: (info: RagInfo) => void
   ragInfo: RagInfo
 }) {
-  const userId = useUserId()
-
   return (
     <MyRuntimeProvider onRagInfo={onRagInfo}>
       <main className="relative h-dvh">
         <Thread />
         <RagInfoDisplay ragInfo={ragInfo} />
-        <UserInfoDisplay userId={userId} />
       </main>
     </MyRuntimeProvider>
   )

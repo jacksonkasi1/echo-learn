@@ -9,6 +9,7 @@ import { ingestRoute } from "@/routes/ingest/process";
 import { deleteRoute } from "@/routes/files/delete-file";
 import { chatRoute } from "@/routes/v1/chat/completions";
 import { usersRoute } from "@/routes/users";
+import { elevenlabsRoute } from "@/routes/elevenlabs";
 
 // ** import agentic
 import { initializeAgenticRouter } from "@repo/agentic";
@@ -99,10 +100,15 @@ app.route("/api/ingest", ingestRoute);
 // DELETE /api/files - Delete file with cascade cleanup
 app.route("/api/files", deleteRoute);
 
-// OpenAI-compatible chat completions (for 11Labs integration)
+// OpenAI-compatible chat completions (for text-based chat)
 // POST /v1/chat/completions - Chat completion endpoint
 // GET /v1/chat/completions/health - Health check
 app.route("/v1/chat", chatRoute);
+
+// ElevenLabs voice integration (for voice-based chat)
+// POST /elevenlabs/v1/chat/completions - SSE streaming endpoint for ElevenLabs Custom LLM
+// GET /elevenlabs/v1/chat/completions/health - Health check
+app.route("/elevenlabs", elevenlabsRoute);
 
 // User routes
 // GET /api/users/:userId/profile - Get user profile

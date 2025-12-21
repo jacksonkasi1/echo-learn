@@ -1,9 +1,15 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import {
+  HeadContent,
+  Scripts,
+  createRootRoute,
+  useLocation,
+} from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import appCss from '../styles.css?url'
 import { ThemeProvider } from '@/components/theme-provider'
-import { UserProvider } from '@/lib/user-context'
+import { UserProvider, useUserId } from '@/lib/user-context'
+import { FloatingVoice, VoiceConversationProvider } from '@/components/voice'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -39,7 +45,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body className="bg-background text-foreground">
         <UserProvider>
           <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-            {children}
+            <VoiceWrapper>{children}</VoiceWrapper>
             <TanStackDevtools
               config={{
                 position: 'bottom-right',
@@ -56,5 +62,22 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         </UserProvider>
       </body>
     </html>
+  )
+}
+
+/**
+ * VoiceWrapper component
+ * Provides voice conversation context at root level to prevent remounting issues
+ */
+function VoiceWrapper({ children }: { children: React.ReactNode }) {
+  const userId = useUserId()
+  const location = useLocation()
+  const isVoicePage = location.pathname === '/voice'
+
+  return (
+    <VoiceConversationProvider userId={userId}>
+      {children}
+      {!isVoicePage && <FloatingVoice />}
+    </VoiceConversationProvider>
   )
 }

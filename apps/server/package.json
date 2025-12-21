@@ -15,6 +15,7 @@
     "@hono/zod-validator": "^0.4.3",
     "@repo/agentic": "workspace:*",
     "@repo/analytics": "workspace:*",
+    "@repo/elevenlabs": "workspace:*",
     "@repo/gcs": "workspace:*",
     "@repo/graph": "workspace:*",
     "@repo/ingest": "workspace:*",

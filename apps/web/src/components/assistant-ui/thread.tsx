@@ -48,6 +48,11 @@ export const Thread: FC = () => {
             <BookOpenIcon />
           </Button>
         </Link>
+        <Link to="/voice">
+          <Button variant="ghost" size="icon" title="Voice Mode">
+            <Volume2Icon />
+          </Button>
+        </Link>
         <ModeToggle />
       </div>
 
