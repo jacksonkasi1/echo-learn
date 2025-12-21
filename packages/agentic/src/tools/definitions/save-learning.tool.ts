@@ -1,7 +1,7 @@
 // ** import types
 import type { ToolDefinition, ToolExecutionContext } from "../../types/tools";
 import { ToolCategory } from "../../types/tools";
-import type { LearningSignal } from "@repo/shared";
+import type { LearningSignal, TestResult, AnswerEvaluation } from "@repo/shared";
 
 // ** import lib
 import { z } from "zod";
@@ -11,10 +11,75 @@ import {
   markTopicCovered,
   logInteraction,
   updateMasteryFromSignal,
+  getActiveTestSession,
+  recordAnswerResult,
+  getCurrentQuestion,
 } from "@repo/storage";
 
 // ** import utils
 import { logger } from "@repo/logs";
+
+/**
+ * Advance test session if one is active
+ * Records the answer result and increments currentIndex
+ */
+async function advanceTestSessionIfActive(
+  userId: string,
+  evaluation: AnswerEvaluation,
+  userAnswer: string,
+  feedback: string,
+  previousMastery: number,
+  newMastery: number,
+): Promise<boolean> {
+  try {
+    const session = await getActiveTestSession(userId);
+    if (!session) return false;
+
+    const currentQuestion = await getCurrentQuestion(userId);
+    if (!currentQuestion) return false;
+
+    // Check if this question was already answered
+    const alreadyAnswered = session.results.some(
+      r => r.questionId === currentQuestion.questionId
+    );
+    if (alreadyAnswered) {
+      logger.info("Question already answered, skipping test session update", {
+        userId,
+        questionId: currentQuestion.questionId,
+      });
+      return false;
+    }
+
+    const result: TestResult = {
+      questionId: currentQuestion.questionId,
+      questionIndex: session.currentIndex,
+      userAnswer,
+      evaluation,
+      feedback,
+      masteryChange: newMastery - previousMastery,
+      previousMastery,
+      newMastery,
+      answeredAt: new Date().toISOString(),
+    };
+
+    await recordAnswerResult(userId, result);
+
+    logger.info("Test session advanced", {
+      userId,
+      questionId: currentQuestion.questionId,
+      evaluation,
+      newIndex: session.currentIndex + 1,
+    });
+
+    return true;
+  } catch (error) {
+    logger.error("Failed to advance test session", {
+      userId,
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+    return false;
+  }
+}
 
 /**
  * Generate a unique concept ID from a topic label
@@ -110,6 +175,14 @@ const saveLearningInputSchema = z.object({
     .boolean()
     .optional()
     .describe("Whether the user answered correctly (for quiz tracking)"),
+  userAnswer: z
+    .string()
+    .optional()
+    .describe("The user's answer text (for test mode - used to record in session)"),
+  reason: z
+    .string()
+    .optional()
+    .describe("Brief explanation of why topic is marked strong/weak (feedback for test mode)"),
 });
 
 type SaveLearningInput = z.output<typeof saveLearningInputSchema>;
@@ -152,6 +225,7 @@ export const saveLearningTool: ToolDefinition<
     "- User demonstrates mastery (correct answers, deep understanding) → action='mark_topic_strong'\n" +
     "- After a long learning/training session → action='log_session_summary'\n" +
     "- User's overall skill level should change → action='update_level'\n\n" +
+    "In TEST MODE: Always include 'userAnswer' (what the user said) and 'reason' (your feedback).\n" +
     "DO NOT call for simple Q&A. Only call when there's meaningful learning progress to save.",
 
   inputSchema: saveLearningInputSchema,
@@ -219,6 +293,7 @@ export const saveLearningTool: ToolDefinition<
 
         case "mark_topic_weak": {
           // Add topics to weak areas and update mastery (negative)
+          let newMastery = 0;
           if (input.topics && input.topics.length > 0) {
             const newWeakAreas = [...profile.weakAreas];
 
@@ -237,9 +312,10 @@ export const saveLearningTool: ToolDefinition<
               const signal = createLearningSignal(
                 topic,
                 "mark_topic_weak",
-                input.summary,
+                input.reason || input.summary,
               );
               await updateMasteryFromSignal(context.userId, signal);
+              newMastery = signal.masteryDelta;
             }
 
             // Keep arrays manageable (max 20)
@@ -250,6 +326,16 @@ export const saveLearningTool: ToolDefinition<
               strongAreas: profile.strongAreas,
             });
           }
+
+          // Advance test session if active (records answer and increments currentIndex)
+          await advanceTestSessionIfActive(
+            context.userId,
+            "incorrect",
+            input.userAnswer || "",
+            input.reason || "Incorrect answer",
+            0,
+            newMastery,
+          );
 
           logger.info("Topics marked as weak with mastery updated", {
             userId: context.userId,
@@ -275,6 +361,7 @@ export const saveLearningTool: ToolDefinition<
 
         case "mark_topic_strong": {
           // Add topics to strong areas and update mastery (positive)
+          let newMastery = 0;
           if (input.topics && input.topics.length > 0) {
             const newStrongAreas = [...profile.strongAreas];
 
@@ -293,9 +380,10 @@ export const saveLearningTool: ToolDefinition<
               const signal = createLearningSignal(
                 topic,
                 "mark_topic_strong",
-                input.summary,
+                input.reason || input.summary,
               );
               await updateMasteryFromSignal(context.userId, signal);
+              newMastery = signal.masteryDelta;
             }
 
             // Keep arrays manageable (max 20)
@@ -306,6 +394,16 @@ export const saveLearningTool: ToolDefinition<
               weakAreas: profile.weakAreas,
             });
           }
+
+          // Advance test session if active (records answer and increments currentIndex)
+          await advanceTestSessionIfActive(
+            context.userId,
+            "correct",
+            input.userAnswer || "",
+            input.reason || "Correct answer",
+            0,
+            newMastery,
+          );
 
           logger.info("Topics marked as strong with mastery updated", {
             userId: context.userId,

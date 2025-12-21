@@ -388,11 +388,13 @@ const AssistantMessage: FC = () => {
       </div>
 
       {/* Follow-up suggestions - only shown on last message when not running */}
-      <AssistantIf condition={({ thread }) => !thread.isRunning}>
-        <div className="mx-2">
-          <FollowUpSuggestions />
-        </div>
-      </AssistantIf>
+      <MessagePrimitive.If lastOrHover>
+        <AssistantIf condition={({ thread }) => !thread.isRunning}>
+          <div className="mx-2">
+            <FollowUpSuggestions />
+          </div>
+        </AssistantIf>
+      </MessagePrimitive.If>
     </MessagePrimitive.Root>
   )
 }

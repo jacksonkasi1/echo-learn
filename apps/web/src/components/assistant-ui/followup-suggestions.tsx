@@ -43,8 +43,33 @@ export const FollowUpSuggestions: FC<{ className?: string }> = ({
   const config = MODE_CONFIG[mode]
   const Icon = config.icon
 
-  // Don't show if loading or no suggestions
-  if (suggestionsLoading || suggestions.length === 0) {
+  // Show skeleton while loading
+  if (suggestionsLoading) {
+    return (
+      <div
+        className={cn(
+          'aui-followup-suggestions mt-4 rounded-xl border border-border/50 bg-muted/30 p-4',
+          className,
+        )}
+      >
+        <div className="mb-3 flex items-center gap-2 text-muted-foreground text-sm">
+          <Icon className="size-4" />
+          <span>{config.label}</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[...Array(4)].map((_, index) => (
+            <div
+              key={`skeleton-${index}`}
+              className="h-9 w-28 animate-pulse rounded-full bg-muted"
+            />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Don't show if no suggestions
+  if (suggestions.length === 0) {
     return null
   }
 
@@ -89,10 +114,10 @@ export const FollowUpSuggestions: FC<{ className?: string }> = ({
 export const FollowUpSuggestionsCompact: FC<{ className?: string }> = ({
   className,
 }) => {
-  const { suggestions, suggestionsLoading } = useLearningContext()
+  const { suggestions } = useLearningContext()
 
-  // Don't show if loading or no suggestions
-  if (suggestionsLoading || suggestions.length === 0) {
+  // Don't show if no suggestions (but keep showing during loading to avoid flicker)
+  if (suggestions.length === 0) {
     return null
   }
 

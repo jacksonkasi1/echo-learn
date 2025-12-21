@@ -117,6 +117,11 @@ export function getTestModeSystemPromptWithContext(
 ): string {
   let contextSection = "";
 
+  // Check if current question has already been answered
+  const questionAlreadyAnswered = currentQuestion && session?.results.some(
+    r => r.questionId === currentQuestion.questionId
+  );
+
   // No active session - instruct LLM to start testing
   if (!session) {
     if (isVoiceMode) {
@@ -223,7 +228,7 @@ DO NOT just write "a) X  b) Y  c) Z" as text - that is NOT interactive!
 - Remaining: ${progress.remaining} questions`;
   }
 
-  if (currentQuestion) {
+  if (currentQuestion && !questionAlreadyAnswered) {
     contextSection += `
 
 ## Current Question (AWAITING ANSWER)
@@ -234,10 +239,20 @@ DO NOT just write "a) X  b) Y  c) Z" as text - that is NOT interactive!
 - Question Text: "${currentQuestion.question}"
 - Expected Answer: "${currentQuestion.expectedAnswer}"
 
-The question has already been presented to the user. The user's next message is their ANSWER.
+The question has already been presented to the user.
 
-## CRITICAL: Answer Evaluation Steps
-When the user responds, you MUST:
+## IMPORTANT: Interpreting User Messages
+
+Before evaluating, FIRST check if the user's message is:
+1. **A request for a NEW/DIFFERENT topic** - e.g., "Quiz me on HIPAA", "Ask me about security", "Next question", "Different topic"
+   → If so: Call generate_adaptive_question with their requested topic, DO NOT evaluate as an answer
+2. **A clarification request** - e.g., "Can you repeat?", "What was the question?"
+   → If so: Repeat the question, DO NOT evaluate
+3. **An actual answer attempt** - e.g., specific content, definitions, explanations
+   → If so: Proceed with evaluation below
+
+## Answer Evaluation Steps (ONLY if user is answering)
+When the user provides an answer, you MUST:
 
 1. **Compare** their answer against Expected Answer above
 2. **Evaluate** as:
@@ -249,23 +264,28 @@ When the user responds, you MUST:
    - action: "mark_topic_strong" if CORRECT
    - action: "mark_topic_weak" if INCORRECT or PARTIAL
    - topics: ["${currentQuestion.conceptLabel}"]
-   - reason: Brief explanation of your evaluation
+   - userAnswer: The user's answer text (REQUIRED in test mode)
+   - reason: Brief explanation of your evaluation (REQUIRED in test mode)
 
 4. **Then respond** to the user with:
    - Whether they got it right/wrong/partial
    - The correct answer if they were wrong
    - Encouraging feedback
-   - Offer to continue with next question
+   - Offer to continue: "Ready for the next question?"
 
 DO NOT skip the save_learning_progress call - this updates their memory cluster!`;
-  } else if (session && !currentQuestion) {
-    // Session exists but no current question - need to generate one
+  } else if (questionAlreadyAnswered || (session && !currentQuestion)) {
+    // Question was already answered OR no current question - generate new one
     contextSection += `
 
-## SESSION ACTIVE - NEED NEXT QUESTION
+## READY FOR NEXT QUESTION
 
-A test session is active but no current question is set.
-Call generate_adaptive_question to get the next question for the user.`;
+${questionAlreadyAnswered ? "The previous question has been answered. " : ""}The user is ready for a new question.
+
+**IMPORTANT:**
+- If the user asks about a SPECIFIC topic (e.g., "Quiz me on HIPAA"), generate a question about THAT topic
+- If the user just says "ok", "next", "ready", etc., call generate_adaptive_question to pick the best topic
+- ALWAYS call generate_adaptive_question first, then present the question`;
   }
 
   return `${basePrompt}
