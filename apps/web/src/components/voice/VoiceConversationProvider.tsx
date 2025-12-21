@@ -26,6 +26,7 @@ export interface VoiceMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
+  isComplete: boolean
 }
 
 /**
@@ -43,7 +44,11 @@ interface VoiceConversationContextType {
   isSpeaking: boolean
   /** Whether the agent is currently listening */
   isListening: boolean
-  /** Conversation messages */
+  /** Whether the agent is thinking (processing but no text yet) */
+  isThinking: boolean
+  /** Current streaming text (live as it's being generated) */
+  currentStreamingText: string
+  /** Conversation messages (completed messages) */
   messages: Array<VoiceMessage>
   /** Start the voice conversation */
   startConversation: () => Promise<string | undefined>
@@ -104,6 +109,8 @@ export function VoiceConversationProvider({
 }: VoiceConversationProviderProps) {
   const [messages, setMessages] = useState<Array<VoiceMessage>>([])
   const [conversationId, setConversationId] = useState<string | null>(null)
+  const [currentStreamingText, setCurrentStreamingText] = useState<string>('')
+  const [isThinking, setIsThinking] = useState<boolean>(false)
 
   // Refs to prevent React StrictMode double-mounting issues
   const isStartingRef = useRef(false)
@@ -117,23 +124,8 @@ export function VoiceConversationProvider({
   const hasEverConnectedRef = useRef(false)
   const unmountTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Add message helper
-  const addMessage = useCallback(
-    (role: 'user' | 'assistant', content: string) => {
-      const message: VoiceMessage = {
-        id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-        role,
-        content,
-        timestamp: new Date(),
-      }
-
-      setMessages((prev) => [...prev, message])
-      onMessage?.(message)
-
-      return message
-    },
-    [onMessage],
-  )
+  // Track current streaming message ID
+  const currentStreamingIdRef = useRef<string | null>(null)
 
   // Initialize the conversation hook
   const conversation = useConversation({
@@ -158,6 +150,8 @@ export function VoiceConversationProvider({
       if (mountedRef.current) {
         onStatusChange?.('disconnected')
         setConversationId(null)
+        setCurrentStreamingText('')
+        setIsThinking(false)
       }
     },
     onMessage: (message) => {
@@ -171,81 +165,68 @@ export function VoiceConversationProvider({
       }
 
       if (messageEvent.source === 'user' && messageEvent.message) {
-        addMessage('user', messageEvent.message)
+        // User message - add as complete
+        const userMessage: VoiceMessage = {
+          id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          role: 'user',
+          content: messageEvent.message,
+          timestamp: new Date(),
+          isComplete: true,
+        }
+        setMessages((prev) => [...prev, userMessage])
+        onMessage?.(userMessage)
+
+        // After user speaks, agent will start thinking
+        setIsThinking(true)
+        setCurrentStreamingText('')
       } else if (messageEvent.source === 'ai' && messageEvent.message) {
-        // For AI, onMessage is typically the final transcript
-        // We update the last message if it was already streaming, or add new if not
-        setMessages((prev) => {
-          const lastMsg = prev[prev.length - 1]
-          if (lastMsg && lastMsg.role === 'assistant') {
-            // Replace with final version
-            return [
-              ...prev.slice(0, -1),
-              { ...lastMsg, content: messageEvent.message! },
-            ]
-          }
-          return [
-            ...prev,
-            {
-              id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-              role: 'assistant',
-              content: messageEvent.message!,
-              timestamp: new Date(),
-            },
-          ]
-        })
+        // AI message - add as complete (ElevenLabs sends full messages, not streaming chunks)
+        const finalText = messageEvent.message
+        console.log('[VoiceConversation] AI message:', finalText)
+
+        // Stop thinking state
+        setIsThinking(false)
+
+        // Create a new complete message
+        const newMsg: VoiceMessage = {
+          id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          role: 'assistant',
+          content: finalText,
+          timestamp: new Date(),
+          isComplete: true,
+        }
+        setMessages((prev) => [...prev, newMsg])
+        onMessage?.(newMsg)
+
+        // Clear streaming state
+        setCurrentStreamingText('')
+        currentStreamingIdRef.current = null
       }
     },
-    // Handle streaming AI response
-    onAgentChatResponsePart: (chunk: any) => {
-      console.log('[VoiceConversation] Chunk:', chunk)
-      /* 
-       * chunk structure typically: 
-       * { agent_response_event: { agent_response_part: { content: [ { text: "..." } ] } } }
-       * or simply { content: "..." } depending on version
-       * Let's safely extract text
-       */
-       let text = ''
-       if (chunk.agent_response_event?.agent_response_part?.content?.[0]?.text) {
-         text = chunk.agent_response_event.agent_response_part.content[0].text
-       } else if (typeof chunk === 'string') {
-         text = chunk
-       }
-       
-       if (text) {
-         setMessages((prev) => {
-           const lastMsg = prev[prev.length - 1]
-           // If last message is assistant, append
-           if (lastMsg && lastMsg.role === 'assistant') {
-             return [
-               ...prev.slice(0, -1),
-               { ...lastMsg, content: lastMsg.content + text },
-             ]
-           }
-           // New assistant message
-           return [
-             ...prev,
-             {
-               id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-               role: 'assistant',
-               content: text,
-               timestamp: new Date(),
-             },
-           ]
-         })
-       }
+    // Handle streaming AI response chunks (if available)
+    // Note: This callback may not fire for all agent configurations
+    onAgentChatResponsePart: (chunk: unknown) => {
+      console.log('[VoiceConversation] Chunk received:', chunk)
+      // Agent is responding, no longer thinking
+      setIsThinking(false)
     },
     onError: (error) => {
       console.error('[VoiceConversation] Error:', error)
       // Reset state on error
       sessionActiveRef.current = false
       isStartingRef.current = false
+      setIsThinking(false)
+      setCurrentStreamingText('')
       if (mountedRef.current) {
         onError?.(new Error(String(error)))
       }
     },
     onModeChange: (mode) => {
       console.log('[VoiceConversation] Mode changed:', mode)
+      // When mode changes to speaking, agent is no longer thinking
+      if (mode.mode === 'speaking') {
+        setIsThinking(false)
+      }
     },
   })
 
@@ -253,8 +234,6 @@ export function VoiceConversationProvider({
   conversationRef.current = conversation
 
   // Cleanup on unmount - end session if active
-  // Empty dependency array so it only runs on mount/unmount
-  // Use a delay to handle React StrictMode double-mount
   useEffect(() => {
     mountedRef.current = true
     // Clear any pending cleanup from previous StrictMode unmount
@@ -265,7 +244,6 @@ export function VoiceConversationProvider({
     return () => {
       mountedRef.current = false
       // Delay cleanup to allow StrictMode remount to cancel it
-      // Only cleanup if we've actually connected before
       if (
         sessionActiveRef.current &&
         conversationRef.current &&
@@ -283,7 +261,7 @@ export function VoiceConversationProvider({
               console.error('[VoiceConversation] Cleanup error:', err)
             })
           }
-        }, 100) // Small delay to allow StrictMode remount
+        }, 100)
       }
     }
   }, [])
@@ -340,10 +318,6 @@ export function VoiceConversationProvider({
       const convId = await conversation.startSession({
         agentId: env.ELEVENLABS_AGENT_ID,
         connectionType: 'webrtc',
-        // customLlmExtraBody: {
-        //   user_id: userId,
-        //   conversation_id: `conv-${Date.now()}`,
-        // },
       })
 
       // Only update state if still mounted
@@ -394,6 +368,8 @@ export function VoiceConversationProvider({
         sessionActiveRef.current = false
         setMessages([])
         setConversationId(null)
+        setCurrentStreamingText('')
+        setIsThinking(false)
       }
     } catch (error) {
       console.error('[VoiceConversation] Failed to end:', error)
@@ -428,7 +404,8 @@ export function VoiceConversationProvider({
   // Derive speaking/listening state
   const isSpeaking = conversation.isSpeaking
   const mappedStatus = mapStatus(conversation.status)
-  const isListening = !conversation.isSpeaking && mappedStatus === 'connected'
+  const isListening =
+    !conversation.isSpeaking && mappedStatus === 'connected' && !isThinking
 
   // Context value
   const value = useMemo<VoiceConversationContextType>(
@@ -436,6 +413,8 @@ export function VoiceConversationProvider({
       status: mappedStatus,
       isSpeaking,
       isListening,
+      isThinking,
+      currentStreamingText,
       messages,
       startConversation,
       endConversation,
@@ -446,6 +425,8 @@ export function VoiceConversationProvider({
       mappedStatus,
       isSpeaking,
       isListening,
+      isThinking,
+      currentStreamingText,
       messages,
       startConversation,
       endConversation,
