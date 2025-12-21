@@ -104,6 +104,9 @@ export interface QueryProcessingOptions {
 
   /** Chat mode (learn/chat/test) - affects how interactions are tracked */
   mode?: ChatMode;
+
+  /** Whether this is a voice interaction (ElevenLabs) - disables interactive UI tools */
+  isVoiceMode?: boolean;
 }
 
 /**

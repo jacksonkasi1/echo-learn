@@ -68,6 +68,8 @@ export interface TestModeContext {
   conversationHistory: Array<{ role: string; content: string }>;
   config: TestModeConfig;
   activeSession?: TestSession;
+  /** Whether this is a voice interaction (ElevenLabs) - uses verbal questions instead of UI tools */
+  isVoiceMode?: boolean;
 }
 
 /**
@@ -111,12 +113,42 @@ export function getTestModeSystemPromptWithContext(
   session: TestSession | null,
   currentQuestion: TestQuestion | null,
   progress: TestSessionProgress | null,
+  isVoiceMode: boolean = false,
 ): string {
   let contextSection = "";
 
   // No active session - instruct LLM to start testing
   if (!session) {
-    contextSection = `
+    if (isVoiceMode) {
+      // Voice mode: ask questions verbally, no UI tools
+      contextSection = `
+
+## NO ACTIVE TEST SESSION - VOICE MODE
+
+The user has entered Test Mode via VOICE conversation.
+
+**VOICE MODE RULES:**
+- Ask ALL questions VERBALLY as plain text
+- DO NOT use present_quiz_question tool - it won't work in voice
+- DO NOT mention "clicking" or "buttons" - there are none
+- Keep questions SHORT and easy to answer verbally
+- For multiple choice, read options aloud: "Is it A, B, C, or D?"
+- Wait for the user to speak their answer
+
+**YOUR FIRST ACTION:**
+1. Call generate_adaptive_question to get a question based on user's knowledge graph
+2. Ask the question OUT LOUD in a conversational way
+3. For multiple choice, say the options verbally
+
+**Example verbal question:**
+"Here's a question about [topic]. [Question text].
+Is the answer A: [option], B: [option], C: [option], or D: [option]?"
+
+If generate_adaptive_question returns no question (no concepts in knowledge graph),
+tell the user they need to learn some topics first before testing.`;
+    } else {
+      // Text/UI mode: use interactive quiz tools
+      contextSection = `
 
 ## NO ACTIVE TEST SESSION
 
@@ -180,6 +212,7 @@ or any question with distinct choices, you MUST call present_quiz_question tool.
 DO NOT just write "a) X  b) Y  c) Z" as text - that is NOT interactive!
 
 **The tool renders a beautiful interactive UI. Plain text does not.**`;
+    }
   } else if (session && progress) {
     contextSection = `
 
@@ -246,6 +279,18 @@ You are conducting an active quiz/test session.
 - Keep the tone encouraging but honest
 
 ## Question Format Decision Guide
+${
+  isVoiceMode
+    ? `
+**VOICE MODE - ALL QUESTIONS ARE VERBAL**
+| Question Type | Format |
+|---------------|--------|
+| All questions | Speak them aloud |
+| Multiple choice | Say "Is it A, B, C, or D?" |
+| True/False | Ask verbally |
+
+DO NOT use present_quiz_question tool in voice mode.`
+    : `
 | Question Type | Format | Rule |
 |---------------|--------|------|
 | Definition/explanation | Plain text | OK |
@@ -257,7 +302,8 @@ You are conducting an active quiz/test session.
 | User asks for "options" or "choices" | **MUST use present_quiz_question** | ⚠️ REQUIRED |
 | Factual recall with choices | **MUST use present_quiz_question** | ⚠️ REQUIRED |
 
-**NEVER write "a) X  b) Y  c) Z" as plain text. ALWAYS use the tool for choices.**
+**NEVER write "a) X  b) Y  c) Z" as plain text. ALWAYS use the tool for choices.**`
+}
 
 ## Answer Evaluation Guidelines
 - CORRECT: User demonstrates clear understanding of the concept
@@ -308,6 +354,7 @@ export async function initializeTestMode(
     session,
     currentQuestion,
     progress,
+    context.isVoiceMode ?? false,
   );
 
   return {

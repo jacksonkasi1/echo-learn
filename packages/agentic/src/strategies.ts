@@ -238,6 +238,7 @@ export async function executeUnifiedAgenticStrategy(
         role: m.role,
         content: m.content,
       })),
+      isVoiceMode: options.isVoiceMode,
     });
 
     logger.info("Mode initialized", {

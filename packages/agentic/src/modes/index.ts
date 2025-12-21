@@ -45,6 +45,8 @@ export interface ModeContext {
   mode: ChatMode;
   query: string;
   conversationHistory: Array<{ role: string; content: string }>;
+  /** Whether this is a voice interaction (ElevenLabs) - disables interactive UI tools */
+  isVoiceMode?: boolean;
 }
 
 /**
@@ -75,7 +77,7 @@ export const DEFAULT_MODE_CONFIG: ModeHandlerConfig = {
  */
 export async function initializeMode(
   context: ModeContext,
-  config: Partial<ModeHandlerConfig> = {}
+  config: Partial<ModeHandlerConfig> = {},
 ): Promise<ModeResult> {
   const mergedConfig = {
     ...DEFAULT_MODE_CONFIG,
@@ -117,6 +119,7 @@ export async function initializeMode(
         conversationHistory: context.conversationHistory,
         config: mergedConfig.test,
         activeSession: testState.session ?? undefined,
+        isVoiceMode: context.isVoiceMode,
       };
       return initializeTestMode(testContext);
     }
@@ -172,7 +175,7 @@ export function shouldRunPassiveAnalysis(mode: ChatMode): boolean {
  */
 export function getToolsForMode<T extends Record<string, unknown>>(
   tools: T,
-  mode: ChatMode
+  mode: ChatMode,
 ): T {
   switch (mode) {
     case "chat":
@@ -206,7 +209,10 @@ export function getDefaultMode(): ChatMode {
 /**
  * Mode descriptions for UI
  */
-export const MODE_DESCRIPTIONS: Record<ChatMode, { name: string; icon: string; description: string }> = {
+export const MODE_DESCRIPTIONS: Record<
+  ChatMode,
+  { name: string; icon: string; description: string }
+> = {
   learn: {
     name: "Learn",
     icon: "🎓",
