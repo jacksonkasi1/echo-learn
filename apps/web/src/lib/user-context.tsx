@@ -4,15 +4,8 @@
 import { createContext, useCallback, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 
-// Development mode check - only use hardcoded ID in explicit dev mode
-const IS_DEV_MODE =
-  process.env.NODE_ENV === 'development' ||
-  process.env.NEXT_PUBLIC_DEV_MODE === 'true'
-
-// Temporary user ID - will be replaced with auth later
-// Only used in development mode to ensure consistent user across sessions
-const DEV_USER_ID = 'user_1766225500960_0hanw9e'
-const DEFAULT_USER_ID = 'user_anonymous'
+// Hardcoded user ID - will be replaced with auth later
+const USER_ID = 'user_1766340918528_63z6u87'
 
 interface UserContextType {
   userId: string
@@ -22,32 +15,8 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | null>(null)
 
-// Get or create a persistent user ID from localStorage
-function getStoredUserId(): string {
-  // In development mode, use hardcoded ID for consistent testing
-  if (IS_DEV_MODE) {
-    console.log('[Dev Mode] Using hardcoded user ID for development')
-    return DEV_USER_ID
-  }
-
-  // Production: use localStorage-based user ID
-  if (typeof window === 'undefined') {
-    return DEFAULT_USER_ID
-  }
-
-  const stored = localStorage.getItem('echo-learn-user-id')
-  if (stored) {
-    return stored
-  }
-
-  // Generate a new user ID if none exists
-  const newId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-  localStorage.setItem('echo-learn-user-id', newId)
-  return newId
-}
-
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [userId, setUserIdState] = useState<string>(() => getStoredUserId())
+  const [userId, setUserIdState] = useState<string>(USER_ID)
 
   const setUserId = useCallback((id: string) => {
     setUserIdState(id)
@@ -82,4 +51,4 @@ export function useUserId(): string {
 }
 
 // Export for cases where context isn't available
-export { DEFAULT_USER_ID, DEV_USER_ID, IS_DEV_MODE }
+export { USER_ID }

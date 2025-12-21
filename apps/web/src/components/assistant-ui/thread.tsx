@@ -125,7 +125,48 @@ const ThreadSuggestions: FC = () => {
     )
   }
 
-  // If no content (new user), show mode-specific empty state
+  // If we have dynamic suggestions, show them (even if hasContent is false)
+  if (suggestions.length > 0) {
+    const emptyMessages = {
+      learn: 'Upload study materials to get personalized learning suggestions',
+      chat: 'Upload materials to get topic suggestions, or ask anything!',
+      test: 'Upload study materials to get personalized quiz suggestions',
+    }
+    return (
+      <div className="aui-thread-welcome-suggestions flex w-full flex-col gap-4 pb-4">
+        {!hasContent && (
+          <p className="text-muted-foreground text-center">{emptyMessages[mode]}</p>
+        )}
+        <div className="grid w-full @md:grid-cols-2 gap-2">
+          {suggestions.map((suggestion, index) => (
+            <div
+              key={`suggested-action-${suggestion.conceptId || suggestion.title}-${index}`}
+              className="aui-thread-welcome-suggestion-display fade-in slide-in-from-bottom-4 @md:nth-[n+3]:block nth-[n+3]:hidden animate-in fill-mode-both duration-300 ease-out"
+              style={{ animationDelay: `${index * 50}ms` }}
+            >
+              <ThreadPrimitive.Suggestion prompt={suggestion.text} send asChild>
+                <Button
+                  variant="ghost"
+                  className="aui-thread-welcome-suggestion h-auto w-full flex-1 @md:flex-col flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm dark:hover:bg-accent/60"
+                  aria-label={suggestion.text}
+                >
+                  <span className="aui-thread-welcome-suggestion-text-1 w-full font-medium line-clamp-1 break-words">
+                    {suggestion.title ||
+                      suggestion.text.split(' ').slice(0, 4).join(' ') + '...'}
+                  </span>
+                  <span className="aui-thread-welcome-suggestion-text-2 w-full text-muted-foreground line-clamp-2 break-words">
+                    {suggestion.text}
+                  </span>
+                </Button>
+              </ThreadPrimitive.Suggestion>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // If no content and no suggestions (new user), show mode-specific empty state
   if (!hasContent) {
     const emptyMessages = {
       learn: 'Upload study materials to get personalized learning suggestions',
@@ -139,38 +180,7 @@ const ThreadSuggestions: FC = () => {
     )
   }
 
-  // If we have dynamic suggestions, show them
-  if (suggestions.length > 0) {
-    return (
-      <div className="aui-thread-welcome-suggestions grid w-full @md:grid-cols-2 gap-2 pb-4">
-        {suggestions.map((suggestion, index) => (
-          <div
-            key={`suggested-action-${suggestion.conceptId || suggestion.title}-${index}`}
-            className="aui-thread-welcome-suggestion-display fade-in slide-in-from-bottom-4 @md:nth-[n+3]:block nth-[n+3]:hidden animate-in fill-mode-both duration-300 ease-out"
-            style={{ animationDelay: `${index * 50}ms` }}
-          >
-            <ThreadPrimitive.Suggestion prompt={suggestion.text} send asChild>
-              <Button
-                variant="ghost"
-                className="aui-thread-welcome-suggestion h-auto w-full flex-1 @md:flex-col flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm dark:hover:bg-accent/60"
-                aria-label={suggestion.text}
-              >
-                <span className="aui-thread-welcome-suggestion-text-1 w-full font-medium line-clamp-1 break-words">
-                  {suggestion.title ||
-                    suggestion.text.split(' ').slice(0, 4).join(' ') + '...'}
-                </span>
-                <span className="aui-thread-welcome-suggestion-text-2 w-full text-muted-foreground line-clamp-2 break-words">
-                  {suggestion.text}
-                </span>
-              </Button>
-            </ThreadPrimitive.Suggestion>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  // Fallback to mode-specific default suggestions when API returns empty
+  // Fallback to mode-specific default suggestions when API returns empty and user has content
   const defaultSuggestionsByMode = {
     learn: [
       { title: 'Get started', action: 'How do I get started with learning?' },
