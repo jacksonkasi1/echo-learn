@@ -12,14 +12,15 @@
 
 1. [Current State vs Vision](#current-state-vs-vision)
 2. [Core Concepts: How Real Learning Works](#core-concepts-how-real-learning-works)
-3. [Phase 1: Smart Mastery Schema with Decay](#phase-1-smart-mastery-schema-with-decay)
-4. [Phase 2: Passive Learning Analysis Pipeline](#phase-2-passive-learning-analysis-pipeline)
-5. [Phase 3: Graph-Aware Mastery Propagation](#phase-3-graph-aware-mastery-propagation)
-6. [Phase 4: Adaptive Question Generation](#phase-4-adaptive-question-generation)
-7. [Phase 5: Follow-Up Suggestions (Perplexity-Style)](#phase-5-follow-up-suggestions-perplexity-style)
-8. [Phase 6: Learning Analytics Dashboard](#phase-6-learning-analytics-dashboard)
-9. [Implementation Roadmap](#implementation-roadmap)
-10. [Success Metrics](#success-metrics)
+3. [**Phase 0: Three-Mode UX System**](#phase-0-three-mode-ux-system) ⭐ NEW
+4. [Phase 1: Smart Mastery Schema with Decay](#phase-1-smart-mastery-schema-with-decay)
+5. [Phase 2: Passive Learning Analysis Pipeline](#phase-2-passive-learning-analysis-pipeline)
+6. [Phase 3: Graph-Aware Mastery Propagation](#phase-3-graph-aware-mastery-propagation)
+7. [Phase 4: Adaptive Question Generation](#phase-4-adaptive-question-generation)
+8. [Phase 5: Follow-Up Suggestions (Perplexity-Style)](#phase-5-follow-up-suggestions-perplexity-style)
+9. [Phase 6: Learning Analytics Dashboard](#phase-6-learning-analytics-dashboard)
+10. [Implementation Roadmap](#implementation-roadmap)
+11. [Success Metrics](#success-metrics)
 
 ---
 
@@ -124,6 +125,575 @@ When user masters concept X:
   For each concept Y that requires X:
     Y.potential += small_boost  (you're ready to learn this)
 ```
+
+---
+
+## Data Architecture & Topic Flow
+
+### The Core Question: Where Do Topics Come From?
+
+Before implementing the learning system, we need to understand the **three data layers** and how they relate:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        DATA ARCHITECTURE                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────────────┐                                               │
+│   │  1. KNOWLEDGE GRAPH │  ← Source of all topics (from uploaded files) │
+│   │  (Document Memory)  │                                               │
+│   │                     │  What CAN be learned                          │
+│   │  • Concepts         │  Redis: user:{userId}:graph                   │
+│   │  • Relationships    │                                               │
+│   │  • Definitions      │                                               │
+│   └──────────┬──────────┘                                               │
+│              │                                                          │
+│              │  Topics flow DOWN                                        │
+│              ▼                                                          │
+│   ┌─────────────────────┐                                               │
+│   │  2. CONCEPT MASTERY │  ← Progress tracking per topic                │
+│   │  (User Memory)      │                                               │
+│   │                     │  How WELL they know it                        │
+│   │  • Mastery scores   │  Redis: user:{userId}:mastery:{conceptId}     │
+│   │  • Decay tracking   │                                               │
+│   │  • Spaced rep       │                                               │
+│   └──────────┬──────────┘                                               │
+│              │                                                          │
+│              │  Progress flows DOWN                                     │
+│              ▼                                                          │
+│   ┌─────────────────────┐                                               │
+│   │  3. TEST SESSION    │  ← Temporary quiz state                       │
+│   │  (Active Testing)   │                                               │
+│   │                     │  Current test in progress                     │
+│   │  • Question queue   │  Redis: user:{userId}:test-session            │
+│   │  • Score tracking   │                                               │
+│   └─────────────────────┘                                               │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### The Three Data Layers Explained
+
+| Layer | What It Is | When Created | Redis Key | Contents |
+|-------|------------|--------------|-----------|----------|
+| **Knowledge Graph** | The curriculum (topic universe) | When files uploaded | `user:{userId}:graph` | Topics, relationships, definitions |
+| **Concept Mastery** | Learning progress per topic | When user interacts with topics | `user:{userId}:mastery:{conceptId}` | Scores, decay, review schedules |
+| **Test Session** | Active quiz state | When user enters Test Mode | `user:{userId}:test-session` | Question queue, current score |
+
+### Topic Lifecycle: From Document to Mastery
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          COMPLETE TOPIC FLOW                              │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  STEP 1: Document Upload (Creates Topic Universe)                        │
+│  ═══════════════════════════════════════════════                         │
+│                                                                          │
+│     User uploads "ML_basics.pdf"                                         │
+│           ↓                                                              │
+│     OCR → Chunking → Graph Generation (Gemini)                           │
+│           ↓                                                              │
+│     Knowledge Graph created with 50 concepts:                            │
+│       nodes: [                                                           │
+│         { id: "neural_network", label: "Neural Network", type: "concept" }│
+│         { id: "backpropagation", label: "Backpropagation", type: "process"}│
+│         { id: "learning_rate", label: "Learning Rate", type: "term" },   │
+│         ...                                                              │
+│       ]                                                                  │
+│       edges: [                                                           │
+│         { source: "backpropagation", target: "neural_network", ... },    │
+│         { source: "learning_rate", target: "gradient_descent", ... },    │
+│       ]                                                                  │
+│           ↓                                                              │
+│     🎯 NOW THE SYSTEM KNOWS ALL 50 TOPICS!                               │
+│                                                                          │
+│  ────────────────────────────────────────────────────────────────────    │
+│                                                                          │
+│  STEP 2: Learning Mode Chat (Creates/Updates Mastery)                    │
+│  ════════════════════════════════════════════════════                    │
+│                                                                          │
+│     User: "Explain backpropagation"                                      │
+│           ↓                                                              │
+│     LLM explains using RAG (retrieves from vector DB + graph)            │
+│           ↓                                                              │
+│     Background Analysis (Phase 2):                                       │
+│       • Extract concepts from response                                   │
+│       • Match "backpropagation" → graph node found!                      │
+│       • Signal: "user asking about" → learning signal                    │
+│       • Create/Update mastery entry:                                     │
+│         user:{userId}:mastery:backpropagation = {                        │
+│           mastery: 0.2,                                                  │
+│           lastInteraction: now(),                                        │
+│           interactionCount: 1                                            │
+│         }                                                                │
+│           ↓                                                              │
+│     Follow-up Suggestions (from graph edges):                            │
+│       • "chain_rule" (prerequisite of backpropagation)                   │
+│       • "gradient_descent" (related concept)                             │
+│       • "vanishing_gradient" (common problem)                            │
+│                                                                          │
+│  ────────────────────────────────────────────────────────────────────    │
+│                                                                          │
+│  STEP 3: Test Mode (Uses Graph + Mastery)                                │
+│  ════════════════════════════════════════                                │
+│                                                                          │
+│     User enters Test Mode                                                │
+│           ↓                                                              │
+│     System queries:                                                      │
+│       • All graph nodes → 50 topics available                            │
+│       • Their mastery scores → progress data                             │
+│           ↓                                                              │
+│     Topic Selection Algorithm:                                           │
+│       • Topics with low mastery (< 0.5)                                  │
+│       • Topics due for review (spaced repetition)                        │
+│       • Topics with high decay (not visited recently)                    │
+│           ↓                                                              │
+│     Generate questions using graph context + RAG                         │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### How Suggestions Work
+
+Suggestions come from **graph edges** (relationships between topics):
+
+```
+User is learning "Backpropagation"
+           ↓
+Query graph for edges where source OR target = "backpropagation":
+  • edge: chain_rule → backpropagation (relation: "prerequisite")
+  • edge: backpropagation → neural_network (relation: "used_in")
+  • edge: backpropagation → vanishing_gradient (relation: "causes")
+           ↓
+Filter by user's mastery:
+  • chain_rule: mastery 0.8 (already knows) → skip
+  • neural_network: mastery 0.3 (weak) → suggest!
+  • vanishing_gradient: mastery 0.0 (never seen) → suggest!
+           ↓
+Generate natural language suggestions:
+  "Would you like to explore neural networks more deeply?"
+  "Ready to learn about the vanishing gradient problem?"
+```
+
+### Key Insight: Graph = Topic Universe
+
+| Question | Answer |
+|----------|--------|
+| "Where do topics come from?" | From the **Knowledge Graph** generated when documents are uploaded |
+| "How does LLM know what topics exist?" | LLM queries the graph to get all available topics |
+| "How do suggestions know what's next?" | Graph edges define relationships between topics |
+| "How does Test Mode pick questions?" | Combines graph (available topics) + mastery (progress) |
+| "What if user asks about unknown topic?" | Can dynamically add to graph, or handle as "off-curriculum" |
+
+### Redis Key Structure (Complete)
+
+```
+# Knowledge Graph (Topic Universe)
+user:{userId}:graph                    → KnowledgeGraph { nodes[], edges[] }
+
+# Concept Mastery (Learning Progress) - one per concept
+user:{userId}:mastery:{conceptId}      → ConceptMastery { mastery, decay, ... }
+user:{userId}:mastery:_index           → Set of all conceptIds with mastery data
+
+# Test Session (Active Quiz)
+user:{userId}:test-session             → TestSession { questions[], current, ... }
+user:{userId}:test-history             → List of past test sessions
+
+# Existing (unchanged)
+user:{userId}:profile                  → UserProfile
+user:{userId}:files                    → Set of fileIds
+user:{userId}:interactions             → Sorted set of chat logs
+file:{fileId}:metadata                 → FileMetadata
+```
+
+---
+
+## Phase 0: Three-Mode UX System
+
+### Goal
+Provide clear user control over how the system interacts with their learning memory through three distinct conversation modes.
+
+### Why Three Modes Instead of Pure LLM Control?
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **LLM decides everything** | Simpler UI, no mode switching | Unpredictable, less user control, might save unwanted things |
+| **Three explicit modes** | Clear intent, user control, optimized behavior per mode | Needs mode-switching UI |
+
+**Decision:** Three explicit modes give users control and predictability while optimizing system behavior for each use case.
+
+### The Three Modes
+
+#### 1. 🎓 **Learn Mode** (Default)
+
+**Purpose:** Normal chat with automatic learning observation
+
+**User Experience:**
+- Chat naturally about any topic
+- System observes and learns in the background
+- No explicit actions required from user
+
+**System Behavior:**
+- Full passive analysis pipeline runs (Phase 2)
+- Extracts concepts from conversation
+- Detects learning signals automatically
+- Updates mastery scores based on observations
+- Follow-up suggestions generated (Phase 5)
+
+**When to Use:**
+- Default mode for all learning conversations
+- When actively studying a topic
+- When wanting the system to track progress
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     🎓 LEARN MODE                                │
+├─────────────────────────────────────────────────────────────────┤
+│  User: "Explain backpropagation to me"                          │
+│  AI: [explains backpropagation in detail]                       │
+│                                                                 │
+│  ┌─── Background (invisible to user) ───┐                       │
+│  │ • Detected: "asking about backpropagation"                   │
+│  │ • Signal: Learning new concept                               │
+│  │ • Action: Created mastery entry (0.2 initial)                │
+│  │ • Related: Linked to "neural networks" in graph              │
+│  └──────────────────────────────────────┘                       │
+│                                                                 │
+│  💡 Follow-up suggestions:                                      │
+│  • "How does the chain rule apply here?"                        │
+│  • "What's the difference between SGD and Adam?"                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 2. 💬 **Chat Mode** (Off-Record / Ask Anything)
+
+**Purpose:** Pure Q&A without affecting learning memory
+
+**User Experience:**
+- Ask any question freely
+- No impact on learning profile
+- "Safe space" for exploration
+
+**System Behavior:**
+- Skip `analyzeInteractionAsync()` entirely
+- No mastery updates
+- No concept extraction
+- No signal detection
+- Regular RAG still works for accurate answers
+
+**When to Use:**
+- Asking "stupid questions" without judgment
+- Exploring tangential topics
+- Getting help on something you don't want tracked
+- Debugging or experimenting
+- Conversations you want "off the record"
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     💬 CHAT MODE                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  User: "What's a really dumb example of overfitting?"           │
+│  AI: [provides a silly but educational example]                 │
+│                                                                 │
+│  ┌─── Background ───┐                                           │
+│  │ [Nothing saved]  │                                           │
+│  │ [Off the record] │                                           │
+│  └──────────────────┘                                           │
+│                                                                 │
+│  (No follow-up suggestions in Chat Mode)                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 3. 📝 **Test Mode** (Quiz / Review Session)
+
+**Purpose:** Active knowledge testing with spaced repetition
+
+**User Experience:**
+- System drives the conversation
+- Questions based on weak/due concepts
+- Immediate feedback on answers
+- Progress tracking visible
+
+**System Behavior:**
+- Pull concepts due for review (spaced repetition - Phase 1)
+- Pull weakest concepts (mastery < 0.5)
+- Generate adaptive questions (Phase 4)
+- Evaluate user answers explicitly
+- Update mastery with strong signals (+0.3 correct / -0.2 wrong)
+- Track test session statistics
+
+**When to Use:**
+- Active review sessions
+- Before exams or assessments
+- When wanting to challenge yourself
+- Periodic knowledge checks
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     📝 TEST MODE                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  AI: "Let's test your knowledge! Based on your learning         │
+│       history, I'll start with concepts due for review."        │
+│                                                                 │
+│  AI: "Question 1 (Medium Difficulty):                           │
+│       What is the purpose of the learning rate in               │
+│       gradient descent?"                                        │
+│                                                                 │
+│  User: "It controls how big the steps are when updating         │
+│         the weights"                                            │
+│                                                                 │
+│  AI: "✅ Correct! The learning rate determines the step size    │
+│       during optimization. Too high = overshooting,             │
+│       too low = slow convergence."                              │
+│                                                                 │
+│  ┌─── Background ───┐                                           │
+│  │ • Concept: "learning rate"                                   │
+│  │ • Answer: Correct                                            │
+│  │ • Mastery: 0.45 → 0.75 (+0.30)                               │
+│  │ • Next review: 4 days                                        │
+│  └──────────────────┘                                           │
+│                                                                 │
+│  📊 Session Progress: 1/10 | Score: 100%                        │
+│  AI: "Ready for the next question?"                             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Mode Comparison Matrix
+
+| Aspect | 🎓 Learn | 💬 Chat | 📝 Test |
+|--------|----------|---------|---------|
+| **Who drives conversation** | User | User | System |
+| **Memory updates** | Automatic (passive) | None | Explicit (active) |
+| **Analysis pipeline** | Full background | Disabled | Test-specific |
+| **Signal strength** | Weak-Medium | None | Strong |
+| **Follow-up suggestions** | Yes | No | Next question |
+| **Use case** | Daily learning | Free exploration | Active review |
+| **Mastery update range** | ±0.05 to ±0.2 | 0 | ±0.2 to ±0.3 |
+
+### UI Implementation
+
+#### Option A: Mode Selector Dropdown (Recommended)
+
+```
+┌────────────────────────────────────────┐
+│  Echo-Learn                    [👤]    │
+├────────────────────────────────────────┤
+│  Mode: [🎓 Learn ▼]                    │
+│        ┌──────────────┐                │
+│        │ 🎓 Learn     │ ← Default      │
+│        │ 💬 Chat      │                │
+│        │ 📝 Test      │                │
+│        └──────────────┘                │
+├────────────────────────────────────────┤
+│                                        │
+│  [Chat messages here]                  │
+│                                        │
+├────────────────────────────────────────┤
+│  [Type your message...]        [Send]  │
+└────────────────────────────────────────┘
+```
+
+#### Option B: Tab-Based Navigation
+
+```
+┌────────────────────────────────────────┐
+│  [🎓 Learn] [💬 Chat] [📝 Test]        │
+│  ─────────                             │
+├────────────────────────────────────────┤
+│                                        │
+│  [Chat messages for selected mode]     │
+│                                        │
+└────────────────────────────────────────┘
+```
+
+#### Option C: Slash Commands (Power Users)
+
+```
+/learn  - Switch to Learn mode
+/chat   - Switch to Chat mode  
+/test   - Start a test session
+/mode   - Show current mode
+```
+
+### API Design
+
+#### Request Extension
+
+```typescript
+interface ChatRequest {
+  message: string;
+  userId: string;
+  conversationId: string;
+  mode: 'learn' | 'chat' | 'test';  // NEW
+  // ... existing fields
+}
+```
+
+#### Backend Mode Handling
+
+**Location:** `packages/agentic/src/strategies.ts`
+
+```typescript
+async function handleChat(request: ChatRequest) {
+  const { message, userId, mode } = request;
+  
+  // Mode-specific system prompts
+  const systemPrompt = getSystemPromptForMode(mode);
+  
+  // Execute chat
+  const response = await streamText({ ... });
+  
+  // Mode-specific post-processing
+  switch (mode) {
+    case 'learn':
+      // Full passive analysis (Phase 2)
+      analyzeInteractionAsync(userId, message, response, history);
+      // Generate follow-ups (Phase 5)
+      const followUps = await generateFollowUps(userId, response);
+      break;
+      
+    case 'chat':
+      // No analysis, no follow-ups
+      // Just return the response
+      break;
+      
+    case 'test':
+      // Evaluate answer if this is a response to a question
+      if (isAnswerToQuestion(history)) {
+        await evaluateAndUpdateMastery(userId, message, history);
+      }
+      // Generate next question or session summary
+      break;
+  }
+  
+  return { response, followUps, testProgress };
+}
+```
+
+#### Mode-Specific System Prompts
+
+```typescript
+const MODE_PROMPTS = {
+  learn: `You are a learning assistant. Help the user understand concepts.
+          The system automatically tracks their learning progress.`,
+          
+  chat: `You are a helpful assistant. Answer questions directly.
+         This conversation is off-record - no learning tracking.`,
+         
+  test: `You are a quiz master testing the user's knowledge.
+         Ask questions about concepts they've learned.
+         After each answer, provide clear feedback (correct/incorrect).
+         Explain the right answer briefly.
+         Then ask if they're ready for the next question.`
+};
+```
+
+### Test Mode Deep Dive
+
+#### Session Flow
+
+```
+1. User enters Test Mode
+   ↓
+2. System fetches:
+   - Concepts due for review (spaced repetition)
+   - Weakest concepts (mastery < 0.5)
+   - Recently learned concepts (reinforce)
+   ↓
+3. System generates question queue (5-10 questions)
+   ↓
+4. For each question:
+   a. Present question with difficulty indicator
+   b. Wait for user answer
+   c. Evaluate answer (correct/partial/incorrect)
+   d. Update mastery score
+   e. Provide feedback
+   f. Update spaced repetition interval
+   ↓
+5. Session complete → Show summary
+```
+
+#### Test Session State
+
+```typescript
+interface TestSession {
+  sessionId: string;
+  userId: string;
+  startedAt: Date;
+  questions: TestQuestion[];
+  currentIndex: number;
+  results: TestResult[];
+  
+  // Computed
+  score: number;           // Percentage correct
+  conceptsTested: string[];
+  masteryChanges: Map<string, number>;
+}
+
+interface TestQuestion {
+  conceptId: string;
+  conceptLabel: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  questionType: 'definition' | 'application' | 'comparison' | 'analysis';
+  question: string;
+  expectedAnswer: string;  // For evaluation reference
+}
+
+interface TestResult {
+  questionIndex: number;
+  userAnswer: string;
+  evaluation: 'correct' | 'partial' | 'incorrect';
+  feedback: string;
+  masteryChange: number;
+}
+```
+
+#### Session Summary UI
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   📝 TEST SESSION COMPLETE                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Score: 7/10 (70%)  ⭐⭐⭐                                       │
+│                                                                 │
+│  ✅ Correct (7):                                                │
+│     • Learning rate                    0.45 → 0.75              │
+│     • Gradient descent                 0.60 → 0.85              │
+│     • Backpropagation                  0.50 → 0.80              │
+│     • ...                                                       │
+│                                                                 │
+│  ❌ Needs Review (3):                                           │
+│     • Batch normalization              0.40 → 0.25              │
+│     • Dropout regularization           0.35 → 0.20              │
+│     • Adam optimizer                   0.30 → 0.15              │
+│                                                                 │
+│  💡 Recommendation:                                             │
+│     Review "regularization techniques" - you struggled          │
+│     with related concepts.                                      │
+│                                                                 │
+│  [🔄 Review Weak Concepts] [📚 Back to Learning] [🏠 Home]      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### TODO List - Phase 0
+
+- [ ] Add `mode` field to chat request types (`packages/shared/src/types/`)
+- [ ] Create mode-specific system prompts
+- [ ] Update `strategies.ts` to handle mode parameter
+- [ ] Implement mode routing logic (learn/chat/test branches)
+- [ ] Create test session management (`packages/agentic/src/test-session/`)
+- [ ] Implement test question queue generation
+- [ ] Implement answer evaluation logic
+- [ ] Create test session summary generator
+- [ ] Add mode selector UI component (frontend)
+- [ ] Add mode persistence (remember last used mode)
+- [ ] Add keyboard shortcuts for mode switching
+- [ ] Add mode indicator in chat UI
+- [ ] Create test session UI components
+- [ ] Add session history/statistics page
+- [ ] Write tests for mode-specific behavior
 
 ---
 
@@ -598,12 +1168,24 @@ GET /api/users/:userId/learning/recommendations
 
 | Phase | Duration | Dependencies | Priority |
 |-------|----------|--------------|----------|
-| Phase 1: Smart Schema | 1 week | None | 🔴 Critical |
-| Phase 2: Passive Analysis | 1 week | Phase 1 | 🔴 Critical |
+| **Phase 0: Three-Mode UX** | 3-4 days | None | 🔴 Critical |
+| Phase 1: Smart Schema | 1 week | Phase 0 | 🔴 Critical |
+| Phase 2: Passive Analysis | 1 week | Phase 0, 1 | 🔴 Critical |
 | Phase 3: Graph Propagation | 1 week | Phase 1, 2 | 🟡 High |
 | Phase 4: Adaptive Questions | 1 week | Phase 1, 2 | 🟡 High |
 | Phase 5: Follow-up Suggestions | 3-4 days | Phase 1, 2, 3 | 🟡 High |
 | Phase 6: Analytics Dashboard | 1 week | All above | 🟢 Medium |
+
+### Phase 0 Breakdown
+
+**Days 1-4: Three-Mode Foundation**
+
+| Day | Task |
+|-----|------|
+| 1 | Add mode types, update API request schema, create mode routing in strategies.ts |
+| 2 | Implement Learn mode (default behavior), implement Chat mode (skip analysis) |
+| 3 | Implement Test mode session management, question queue generation |
+| 4 | Build mode selector UI, test session UI, integration testing |
 
 ### Phase 1 Breakdown
 
@@ -693,8 +1275,20 @@ GET /api/users/:userId/learning/recommendations
 ### New Files
 
 ```
-packages/shared/src/types/learning.ts          # New types
+packages/shared/src/types/learning.ts          # New types (includes mode)
+packages/shared/src/types/test-session.ts      # Test session types
 packages/storage/src/redis/mastery.ts          # Mastery CRUD
+packages/storage/src/redis/test-session.ts     # Test session storage
+packages/agentic/src/modes/                    # Mode handling
+  ├── index.ts
+  ├── learn-mode.ts
+  ├── chat-mode.ts
+  └── test-mode.ts
+packages/agentic/src/test-session/             # Test session management
+  ├── index.ts
+  ├── question-generator.ts
+  ├── answer-evaluator.ts
+  └── session-manager.ts
 packages/agentic/src/analysis/                 # Analysis pipeline
   ├── index.ts
   ├── concept-extractor.ts
@@ -707,6 +1301,11 @@ packages/agentic/src/tools/definitions/
   ├── query-graph.tool.ts
   └── adaptive-question.tool.ts
 apps/server/src/routes/learning/               # New API routes
+apps/web/src/components/ModeSelector.tsx       # Mode selector UI
+apps/web/src/components/TestSession/           # Test mode UI
+  ├── TestSessionView.tsx
+  ├── QuestionCard.tsx
+  └── SessionSummary.tsx
 ```
 
 ### Modified Files
@@ -725,14 +1324,19 @@ apps/server/src/index.ts                       # Mount learning routes
 
 This plan transforms Echo-Learn from a static Q&A system into an **intelligent learning companion** that:
 
-1. **Observes** every interaction automatically (no explicit saves)
-2. **Remembers** with realistic decay (like human memory)
-3. **Connects** concepts through the knowledge graph
-4. **Adapts** questions to user's current level
-5. **Suggests** smart follow-ups (Perplexity-style)
-6. **Visualizes** progress to motivate learning
+1. **Respects user intent** with three distinct modes (Learn/Chat/Test)
+2. **Observes** every interaction automatically in Learn mode (no explicit saves)
+3. **Remembers** with realistic decay (like human memory)
+4. **Connects** concepts through the knowledge graph
+5. **Adapts** questions to user's current level
+6. **Tests** knowledge actively in Test mode with spaced repetition
+7. **Suggests** smart follow-ups (Perplexity-style)
+8. **Visualizes** progress to motivate learning
 
-The key insight: **The agent doesn't manage memory — it queries it.** The memory system is a living, breathing model that updates itself from observation, not explicit instructions.
+The key insights:
+- **User control matters:** The three-mode system gives users clear control over when and how their learning is tracked.
+- **The agent doesn't manage memory — it queries it.** The memory system is a living, breathing model that updates itself from observation, not explicit instructions.
+- **Different contexts need different behaviors:** Learning passively, exploring freely, and testing actively are fundamentally different activities that deserve dedicated modes.
 
 ---
 
