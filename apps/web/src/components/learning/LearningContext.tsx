@@ -149,6 +149,8 @@ export function LearningProvider({ children }: { children: ReactNode }) {
 
       // Automatically fetch follow-up suggestions with the new response
       if (assistantResponse) {
+        // Set loading immediately to show skeleton (prevents old suggestions flash)
+        setSuggestionsLoading(true)
         fetchFollowUpSuggestions({
           assistantResponse,
           userMessage,
