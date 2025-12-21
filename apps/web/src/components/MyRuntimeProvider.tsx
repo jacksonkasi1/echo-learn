@@ -1,16 +1,17 @@
 // Chat runtime provider using assistant-ui LocalRuntime and our backend API
-import { useCallback, useMemo, useState } from 'react'
 import {
   AssistantRuntimeProvider,
   WebSpeechSynthesisAdapter,
   useLocalRuntime,
 } from '@assistant-ui/react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import type { ChatModelAdapter } from '@assistant-ui/react'
 
 import type { ChatMessage } from '@/api/chat'
 import { streamChatCompletion } from '@/api/chat'
+import { useLearningContext } from '@/components/learning/LearningContext'
 import { useUserId } from '@/lib/user-context'
 
 // Import Tool UI components for test mode
@@ -83,6 +84,7 @@ function createModelAdapter(
   userId: string,
   mode: 'learn' | 'chat' | 'test',
   onRagInfo?: (info: RagInfo) => void,
+  onResponseComplete?: (assistantResponse: string, userMessage: string) => void,
 ): ChatModelAdapter {
   return {
     async *run({ messages, abortSignal }) {
@@ -161,6 +163,10 @@ function createModelAdapter(
 
       // Filter out empty messages
       const filteredMessages = apiMessages.filter((m) => m.content.length > 0)
+
+      // Extract the last user message for follow-up suggestions
+      const lastUserMessage =
+        filteredMessages.filter((m) => m.role === 'user').pop()?.content || ''
 
       try {
         // Use our API client to stream the response with userId for RAG
@@ -253,6 +259,11 @@ function createModelAdapter(
         if (content.length > 0) {
           yield { content }
         }
+
+        // Notify about response completion for smart follow-up suggestions
+        if (cleanText && onResponseComplete) {
+          onResponseComplete(cleanText, lastUserMessage)
+        }
       } catch (error) {
         if (abortSignal.aborted) return
         console.error('Chat error:', error)
@@ -279,10 +290,21 @@ export function MyRuntimeProvider({
   // Get userId from context for RAG-enabled chat
   const userId = useUserId()
 
-  // Create adapter with current userId
+  // Get setLastMessages from learning context for smart follow-up suggestions
+  const { setLastMessages } = useLearningContext()
+
+  // Callback when response completes - triggers smart follow-up generation
+  const handleResponseComplete = useCallback(
+    (assistantResponse: string, userMessage: string) => {
+      setLastMessages(assistantResponse, userMessage)
+    },
+    [setLastMessages],
+  )
+
+  // Create adapter with current userId and response callback
   const adapter = useMemo(
-    () => createModelAdapter(userId, mode, onRagInfo),
-    [userId, mode, onRagInfo],
+    () => createModelAdapter(userId, mode, onRagInfo, handleResponseComplete),
+    [userId, mode, onRagInfo, handleResponseComplete],
   )
 
   // Use useLocalRuntime which manages state automatically

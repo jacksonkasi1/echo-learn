@@ -18,10 +18,16 @@ import {
   getKnowledgeGraph,
 } from "@repo/storage";
 
+// ** import routes
+import { suggestionsRoute } from "./suggestions.js";
+
 // ** import utils
 import { logger } from "@repo/logs";
 
 const learningRoute = new Hono();
+
+// Mount suggestions routes under /learning/suggestions
+learningRoute.route("/suggestions", suggestionsRoute);
 
 /**
  * GET /learning/mastery-map
@@ -42,9 +48,7 @@ learningRoute.get("/mastery-map", async (c: Context) => {
     ]);
 
     // Create mastery lookup map
-    const masteryMap = new Map(
-      masteryData.map((m) => [m.conceptId, m])
-    );
+    const masteryMap = new Map(masteryData.map((m) => [m.conceptId, m]));
 
     // Transform nodes with mastery data for visualization
     const nodes = graph.nodes.map((node) => {
@@ -137,7 +141,7 @@ learningRoute.get("/due-reviews", async (c: Context) => {
     for (const concept of dueForReview) {
       const reviewDate = new Date(concept.nextReviewDate);
       const daysOverdue = Math.floor(
-        (now.getTime() - reviewDate.getTime()) / (1000 * 60 * 60 * 24)
+        (now.getTime() - reviewDate.getTime()) / (1000 * 60 * 60 * 24),
       );
 
       if (daysOverdue > 7) {
@@ -267,11 +271,7 @@ learningRoute.get("/recommendations", async (c: Context) => {
   }
 
   try {
-    const learningPath = await getLearningPath(
-      userId,
-      targetConcept,
-      limit
-    );
+    const learningPath = await getLearningPath(userId, targetConcept, limit);
 
     logger.info("Learning recommendations generated", {
       userId,

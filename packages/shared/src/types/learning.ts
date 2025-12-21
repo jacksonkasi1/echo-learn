@@ -187,7 +187,8 @@ Keep the tone encouraging but honest about correctness.`,
  * Follow-up suggestion for Perplexity-style UX
  */
 export interface FollowUpSuggestion {
-  text: string; // Natural language question
+  text: string; // Natural language question/prompt (concise, max 8-10 words)
+  title?: string; // Short display title (2-4 words) for UI buttons
   conceptId?: string; // Related concept if any
   type: "explore" | "quiz" | "example" | "deeper" | "related";
   priority: number; // Higher = more relevant (0-1)
