@@ -1,6 +1,7 @@
 // ** import lib
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { ArrowLeft, PhoneOff } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 
 // ** import components
 import { useVoiceConversation } from '@/components/voice'
@@ -47,13 +48,21 @@ function VoicePage() {
     return 'thinking'
   }
 
-  // Get status text for display
+  // Get status text for display - always show something when connected
   const getStatusText = () => {
     if (status !== 'connected') return null
     if (isSpeaking) return 'Echo is speaking...'
     if (isThinking) return 'Echo is thinking...'
     if (isListening) return 'Listening to you...'
-    return null
+    return 'Ready'
+  }
+
+  // Get a stable key for AnimatePresence based on current state
+  const getStatusKey = () => {
+    if (isSpeaking) return 'speaking'
+    if (isThinking) return 'thinking'
+    if (isListening) return 'listening'
+    return 'ready'
   }
 
   // Check if voice is configured
@@ -118,14 +127,23 @@ function VoicePage() {
 
           {/* Status Text Below Orb */}
           {status === 'connected' && (
-            <div className="mt-4 h-6">
-              {getStatusText() && (
-                <ShimmeringText
-                  text={getStatusText()!}
-                  className="text-sm text-muted-foreground"
-                  duration={1.5}
-                />
-              )}
+            <div className="mt-4 h-6 flex items-center justify-center">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={getStatusKey()}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ShimmeringText
+                    text={getStatusText()!}
+                    className="text-sm text-muted-foreground"
+                    duration={1.5}
+                    repeat={true}
+                  />
+                </motion.div>
+              </AnimatePresence>
             </div>
           )}
         </div>
