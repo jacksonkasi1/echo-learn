@@ -125,13 +125,16 @@ const ThreadSuggestions: FC = () => {
     )
   }
 
-  // If no content (new user), show upload prompt
-  if (!hasContent && mode === 'learn') {
+  // If no content (new user), show mode-specific empty state
+  if (!hasContent) {
+    const emptyMessages = {
+      learn: 'Upload study materials to get personalized learning suggestions',
+      chat: 'Upload materials to get topic suggestions, or ask anything!',
+      test: 'Upload study materials to get personalized quiz suggestions',
+    }
     return (
       <div className="aui-thread-welcome-suggestions flex w-full flex-col items-center gap-4 pb-4 text-center">
-        <p className="text-muted-foreground">
-          Upload study materials to get personalized learning suggestions
-        </p>
+        <p className="text-muted-foreground">{emptyMessages[mode]}</p>
       </div>
     )
   }
@@ -152,10 +155,11 @@ const ThreadSuggestions: FC = () => {
                 className="aui-thread-welcome-suggestion h-auto w-full flex-1 @md:flex-col flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm dark:hover:bg-accent/60"
                 aria-label={suggestion.text}
               >
-                <span className="aui-thread-welcome-suggestion-text-1 w-full font-medium line-clamp-1">
-                  {suggestion.title}
+                <span className="aui-thread-welcome-suggestion-text-1 w-full font-medium line-clamp-1 break-words">
+                  {suggestion.title ||
+                    suggestion.text.split(' ').slice(0, 4).join(' ') + '...'}
                 </span>
-                <span className="aui-thread-welcome-suggestion-text-2 w-full text-muted-foreground line-clamp-2">
+                <span className="aui-thread-welcome-suggestion-text-2 w-full text-muted-foreground line-clamp-2 break-words">
                   {suggestion.text}
                 </span>
               </Button>
@@ -166,29 +170,29 @@ const ThreadSuggestions: FC = () => {
     )
   }
 
-  // Fallback to default suggestions for non-learn modes or empty state
-  const defaultSuggestions = [
-    {
-      title: "What's the weather",
-      label: 'in San Francisco?',
-      action: "What's the weather in San Francisco?",
-    },
-    {
-      title: 'Explain React hooks',
-      label: 'like useState and useEffect',
-      action: 'Explain React hooks like useState and useEffect',
-    },
-    {
-      title: 'Write a SQL query',
-      label: 'to find top customers',
-      action: 'Write a SQL query to find top customers',
-    },
-    {
-      title: 'Create a meal plan',
-      label: 'for healthy weight loss',
-      action: 'Create a meal plan for healthy weight loss',
-    },
-  ]
+  // Fallback to mode-specific default suggestions when API returns empty
+  const defaultSuggestionsByMode = {
+    learn: [
+      { title: 'Get started', action: 'How do I get started with learning?' },
+      { title: 'Study tips', action: 'What are effective study techniques?' },
+      { title: 'Learning path', action: 'Help me create a learning plan' },
+      { title: 'Upload help', action: 'How do I upload study materials?' },
+    ],
+    chat: [
+      { title: 'Ask anything', action: 'What can you help me with?' },
+      { title: 'Get help', action: 'I need help with something' },
+      { title: 'Explore topics', action: 'What topics can we discuss?' },
+      { title: 'Tell me more', action: 'Tell me something interesting' },
+    ],
+    test: [
+      { title: 'Start quiz', action: 'Start a general knowledge quiz' },
+      { title: 'Practice test', action: 'Give me a practice test' },
+      { title: 'Quick questions', action: 'Ask me some quick questions' },
+      { title: 'Challenge me', action: 'Give me a challenging quiz' },
+    ],
+  }
+
+  const defaultSuggestions = defaultSuggestionsByMode[mode]
 
   return (
     <div className="aui-thread-welcome-suggestions grid w-full @md:grid-cols-2 gap-2 pb-4">
@@ -208,11 +212,11 @@ const ThreadSuggestions: FC = () => {
               className="aui-thread-welcome-suggestion h-auto w-full flex-1 @md:flex-col flex-wrap items-start justify-start gap-1 rounded-3xl border px-5 py-4 text-left text-sm dark:hover:bg-accent/60"
               aria-label={suggestedAction.action}
             >
-              <span className="aui-thread-welcome-suggestion-text-1 w-full font-medium line-clamp-1">
+              <span className="aui-thread-welcome-suggestion-text-1 font-medium">
                 {suggestedAction.title}
               </span>
-              <span className="aui-thread-welcome-suggestion-text-2 w-full text-muted-foreground line-clamp-2">
-                {suggestedAction.label}
+              <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground">
+                {suggestedAction.action}
               </span>
             </Button>
           </ThreadPrimitive.Suggestion>
