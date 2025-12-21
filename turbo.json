@@ -5,7 +5,7 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "outputs": ["dist/**", ".output/**", ".next/**", "!.next/cache/**"]
     },
     "dev": {
       "cache": false,
@@ -43,6 +43,8 @@
     "MISTRAL_API_KEY",
     "ELEVENLABS_API_KEY",
     "ELEVENLABS_AGENT_ID",
-    "ELEVENLABS_AGENT_SECRET"
+    "ELEVENLABS_AGENT_SECRET",
+    "VITE_ELEVENLABS_AGENT_ID",
+    "VITE_API_BASE_URL"
   ]
 }
