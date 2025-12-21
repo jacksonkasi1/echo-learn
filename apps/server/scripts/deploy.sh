@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Trap to ensure cleanup on exit
+trap 'rm -f "$TEMP_ENV_YAML"' EXIT
+
 # ===========================================
 # Echo-Learn Server - GCP Cloud Run Deployment
 # ===========================================
@@ -26,7 +29,10 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_DIR="$(dirname "$SCRIPT_DIR")"
 ROOT_DIR="$(dirname "$(dirname "$SERVER_DIR")")"
-SA_KEY="$SERVER_DIR/gcp-service-account.json"
+
+# Allow overriding via environment variables
+SA_KEY="${GCP_SA_KEY_PATH:-$SERVER_DIR/gcp-service-account.json}"
+GCP_REGION="${GCP_REGION:-asia-southeast1}"
 
 echo "📁 Root directory: $ROOT_DIR"
 echo "📁 Server directory: $SERVER_DIR"
@@ -76,8 +82,8 @@ gcloud config set project "$PROJECT_ID" --quiet
 # Environment-Specific Configuration
 # ===========================================
 SERVICE_NAME="echo-learn-server-$ENV"
-IMAGE_NAME="asia-southeast1-docker.pkg.dev/$PROJECT_ID/echo-learn/$SERVICE_NAME"
-REGION="asia-southeast1"  # Thailand region (nearest to India)
+REGION="$GCP_REGION"
+IMAGE_NAME="$REGION-docker.pkg.dev/$PROJECT_ID/echo-learn/$SERVICE_NAME"
 
 # Set resources based on environment
 case $ENV in
@@ -152,26 +158,38 @@ TEMP_ENV_YAML="$SERVER_DIR/.deploy-env.yaml"
 echo "NODE_ENV: \"production\"" > "$TEMP_ENV_YAML"
 echo "ENVIRONMENT: \"$ENV\"" >> "$TEMP_ENV_YAML"
 
-while IFS='=' read -r key value || [[ -n "$key" ]]; do
+while IFS= read -r line || [[ -n "$line" ]]; do
   # Skip empty lines and comments
-  [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+  [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
 
-  # Clean the key (remove any whitespace)
-  key=$(echo "$key" | tr -d '[:space:]')
+  # Split on first = only
+  key="${line%%=*}"
+  value="${line#*=}"
 
-  # Clean the value (remove surrounding quotes if present)
-  value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+  # If no = found, skip the line
+  [[ "$key" == "$line" ]] && continue
 
-  # Skip if key or value is empty after cleaning
-  [[ -z "$key" || -z "$value" ]] && continue
+  # Trim leading/trailing whitespace from key
+  key=$(echo "$key" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+
+  # Skip if key is empty
+  [[ -z "$key" ]] && continue
 
   # Skip NODE_ENV and PORT as they're already added or reserved
   [[ "$key" == "NODE_ENV" || "$key" == "PORT" ]] && continue
 
-  # Escape special characters for YAML
-  value=$(echo "$value" | sed 's/"/\\"/g')
+  # Trim leading/trailing whitespace from value
+  value=$(echo "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 
-  # Add to YAML environment file
+  # Remove surrounding quotes if present (both single and double)
+  if [[ "$value" =~ ^\"(.*)\"$ ]] || [[ "$value" =~ ^\'(.*)\'$ ]]; then
+    value="${BASH_REMATCH[1]}"
+  fi
+
+  # Escape for YAML: first backslashes, then double quotes
+  value=$(echo "$value" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
+
+  # Add to YAML environment file (always use double quotes)
   echo "${key}: \"${value}\"" >> "$TEMP_ENV_YAML"
   echo "  ✓ Added: $key"
 done < "$ENV_FILE"
@@ -195,9 +213,6 @@ gcloud run deploy "$SERVICE_NAME" \
   --timeout 300 \
   --env-vars-file="$TEMP_ENV_YAML" \
   --quiet
-
-# Clean up temp env file
-rm -f "$TEMP_ENV_YAML"
 
 # ===========================================
 # Get Service URL

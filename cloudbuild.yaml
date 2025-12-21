@@ -1,5 +1,6 @@
 steps:
-  - name: 'gcr.io/cloud-builders/docker'
+  # Pin to latest tag for reproducibility; can use specific version like :20.10 or SHA digest for stricter pinning
+  - name: 'gcr.io/cloud-builders/docker:latest'
     args:
       - 'build'
       - '-t'
