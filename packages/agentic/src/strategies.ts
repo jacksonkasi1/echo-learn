@@ -105,38 +105,43 @@ export async function executeUnifiedAgenticStrategy(
 
 ## Your Tools
 
-You have tools that you MUST use appropriately:
-
 - **search_rag**: Search the user's uploaded knowledge base
+- **rerank_documents**: Re-rank search results to find the most relevant ones
 - **calculator**: Evaluate mathematical expressions
-- **rerank_documents**: Re-rank search results for better relevance
 
-## CRITICAL: Tool Usage Rules
+## Tool Usage Rules
 
-**ALWAYS call search_rag FIRST when the user asks:**
-- Any question about a person, place, thing, concept, or fact (e.g., "Who is X?", "What is Y?", "Tell me about Z")
-- About their documents, notes, materials, or knowledge
-- About topics, products, features, or any domain-specific information
-- For summaries, explanations, or details about anything
+**Step 1 - ALWAYS search first:**
+For ANY factual question (Who/What/Where/When/Why/How), call search_rag first.
+
+**Step 2 - Rerank for specific questions:**
+After search_rag returns results, use rerank_documents when:
+- User asks about a SPECIFIC person, fact, or detail (e.g., "Who is Jackson?", "What is the price?")
+- You got many results (10+) and need to find the most relevant ones
+- The question needs a precise answer, not a broad summary
+
+**Skip reranking for:**
+- Summary/overview questions ("Summarize the project", "List all features")
+- When search returns few results (<5)
+- Broad exploratory questions
+
+**Example workflow for "Who is Jackson?":**
+1. Call search_rag with query "Jackson"
+2. If results > 5, call rerank_documents with query "Who is Jackson?" and the document texts
+3. Use the top reranked results to answer
 
 **ONLY skip search_rag for:**
-- Pure greetings: "hi", "hello", "how are you"
-- Math calculations: use calculator instead
-- Meta questions about YOU (the assistant), not about content
+- Pure greetings: "hi", "hello"
+- Math: use calculator
+- Questions about yourself (the assistant)
 
-**MANDATORY**: If you're about to say "I don't have information" or "I don't see that" - STOP!
-You MUST call search_rag first. Never claim lack of knowledge without searching.
-
-The user's question "Who is Jackson?" or "What is X?" means: search the knowledge base for Jackson/X.
+**MANDATORY**: Never say "I don't have information" without calling search_rag first.
 
 ## Response Guidelines
 
-When you retrieve information from search_rag:
-- Share actual content, not just "I have info about X, Y, Z"
-- Extract real names and terms from the retrieved chunks
-- Be helpful and substantive
-
-You may use any markdown formatting when it helps clarity (headings, lists, tables, quotes, etc.) - use your judgment based on the content and context.`;
+- Share actual content from the retrieved/reranked chunks
+- Be specific and substantive
+- Use markdown formatting when helpful`;
 
     // Create agent with tools
     const agent = createAgent(systemPrompt, tools);

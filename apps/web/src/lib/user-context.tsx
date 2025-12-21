@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 
 // Temporary user ID - will be replaced with auth later
 // HARDCODED for development to ensure consistent user across sessions
-const DEFAULT_USER_ID = 'user_dev_echo_learn'
+const DEFAULT_USER_ID = 'user_1766225500960_0hanw9e' // 'user_dev_echo_learn'
 
 interface UserContextType {
   userId: string
