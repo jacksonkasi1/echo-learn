@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { BookOpen, Brain, MessageSquare, Mic } from 'lucide-react'
+import { AudioLines, BookOpen, Brain, MessageSquare } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { LearningProvider } from './LearningContext'
@@ -21,7 +21,7 @@ function LearningLayoutContent({ children }: LearningLayoutProps) {
         </Link>
         <Link to="/voice" title="Voice Mode">
           <Button variant="ghost" size="icon">
-            <Mic className="size-5" />
+            <AudioLines className="size-5" />
           </Button>
         </Link>
         <Link to="/dashboard" title="Dashboard">
