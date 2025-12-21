@@ -9,7 +9,17 @@ import { nitro } from 'nitro/vite'
 const config = defineConfig({
   plugins: [
     devtools(),
-    nitro(),
+    nitro({
+      externals: {
+        inline: [],
+        external: [
+          'react-reconciler',
+          '@react-three/fiber',
+          '@react-three/drei',
+          'three',
+        ],
+      },
+    }),
     // this is the plugin that enables path aliases
     viteTsConfigPaths({
       projects: ['./tsconfig.json'],

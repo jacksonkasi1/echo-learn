@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 
 // ** import components
 import { useVoiceConversation } from '@/components/voice'
-import { Orb } from '@/components/ui/orb'
+import { ClientOrb as Orb } from '@/components/ui/orb-client'
 import { Button } from '@/components/ui/button'
 import { ShimmeringText } from '@/components/ui/shimmering-text'
 import {

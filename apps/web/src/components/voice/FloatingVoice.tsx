@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Loader2, X } from 'lucide-react'
 
 import { useVoiceConversation } from './VoiceConversationProvider'
-import { Orb } from '@/components/ui/orb'
+import { ClientOrb as Orb } from '@/components/ui/orb-client'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { env } from '@/config/env'

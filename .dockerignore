@@ -1,0 +1,33 @@
+# Secrets and credentials
+**/.env
+**/.env.*
+**/gcp-service-account.json
+**/*.pem
+**/*.key
+
+# Dependencies (will be installed fresh in container)
+**/node_modules
+
+# Build artifacts
+**/dist
+**/.output
+**/.next
+**/.turbo
+
+# IDE and OS
+**/.idea
+**/.vscode
+**/.DS_Store
+
+# Git
+.git
+.gitignore
+
+# Docs
+*.md
+!README.md
+
+# Tests
+**/*.test.*
+**/*.spec.*
+**/coverage
