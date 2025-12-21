@@ -5,9 +5,6 @@ export const env = {
   // Backend API URL - the base URL for all API calls
   API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8787',
 
-  // OpenAI API Key (for direct OpenAI usage if needed, optional)
-  OPENAI_API_KEY: import.meta.env.VITE_OPENAI_API_KEY || '',
-
   // Environment mode
   NODE_ENV: import.meta.env.MODE || 'development',
 
