@@ -7,8 +7,6 @@ export type {
   LearningSignal,
   ConceptMastery,
   MasteryUpdate,
-  LearningRelationType,
-  LearningEdge,
   MasterySummary,
   ConceptWithEffectiveMastery,
   QuestionDifficulty,
@@ -88,6 +86,7 @@ export type {
 
 // Graph types
 export type {
+  LearningRelationType,
   GraphNodeType,
   GraphNode,
   GraphEdge,
