@@ -10,11 +10,32 @@ import { deleteRoute } from "@/routes/files/delete-file";
 import { chatRoute } from "@/routes/v1/chat/completions";
 import { usersRoute } from "@/routes/users";
 
+// ** import agentic
+import { initializeAgenticRouter } from "@repo/agentic";
+
 // ** import utils
 import { logger } from "@repo/logs";
 
 // Initialize Hono app
 const app = new Hono();
+
+// ===========================================
+// Agentic Router Initialization
+// ===========================================
+
+// Initialize agentic router on startup
+initializeAgenticRouter({
+  maxSteps: 5,
+  enableDetailedLogging: process.env.NODE_ENV === "development",
+})
+  .then(() => {
+    logger.info("Agentic router initialized successfully");
+  })
+  .catch((error) => {
+    logger.error("Failed to initialize agentic router", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  });
 
 // ===========================================
 // Middleware

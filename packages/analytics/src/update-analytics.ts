@@ -53,25 +53,25 @@ export async function updateAnalytics(data: AnalyticsData): Promise<void> {
       topicsCount: topicsDiscussed.length,
     });
 
-    // 1. Mark topics as covered
+    // Use Promise.all to execute operations in parallel for better performance
+    const [profile] = await Promise.all([
+      // 1. Get user profile (needed for update)
+      getUserProfile(userId),
+
+      // 2. Mark topics as covered in parallel
+      ...(topicsDiscussed.length > 0
+        ? topicsDiscussed.map((topic) => markTopicCovered(userId, topic))
+        : []),
+    ]);
+
     if (topicsDiscussed.length > 0) {
-      for (const topic of topicsDiscussed) {
-        await markTopicCovered(userId, topic);
-      }
       logger.info("Topics marked as covered", {
         userId,
         topics: topicsDiscussed,
       });
     }
 
-    // 2. Update user profile with interaction count
-    const profile = await getUserProfile(userId);
-    await updateUserProfile(userId, {
-      questionsAnswered: profile.questionsAnswered + 1,
-      lastInteraction: new Date().toISOString(),
-    });
-
-    // 3. Log the interaction for history
+    // 3. Prepare interaction log
     const interactionLog: InteractionLog = {
       userId,
       timestamp: new Date().toISOString(),
@@ -79,13 +79,20 @@ export async function updateAnalytics(data: AnalyticsData): Promise<void> {
       response,
       topicsDiscussed,
       retrievedChunks: retrievedChunks.map(
-        (chunk) => chunk.slice(0, 200) + (chunk.length > 200 ? "..." : "")
+        (chunk) => chunk.slice(0, 200) + (chunk.length > 200 ? "..." : ""),
       ),
       responseLength: response.length,
       processingTimeMs,
     };
 
-    await logInteraction(interactionLog);
+    // 4. Execute profile update and interaction log in parallel
+    await Promise.all([
+      updateUserProfile(userId, {
+        questionsAnswered: profile.questionsAnswered + 1,
+        lastInteraction: new Date().toISOString(),
+      }),
+      logInteraction(interactionLog),
+    ]);
 
     logger.info("Analytics updated successfully", {
       userId,
@@ -103,7 +110,7 @@ export async function updateAnalytics(data: AnalyticsData): Promise<void> {
 export async function trackQuizPerformance(
   userId: string,
   topic: string,
-  isCorrect: boolean
+  isCorrect: boolean,
 ): Promise<void> {
   try {
     const profile = await getUserProfile(userId);
@@ -239,7 +246,7 @@ export async function getAnalyticsSummary(userId: string): Promise<{
  */
 export async function extractAndRecordTopics(
   userId: string,
-  messages: Array<{ role: string; content: string }>
+  messages: Array<{ role: string; content: string }>,
 ): Promise<string[]> {
   try {
     // Use LLM to extract topics
@@ -247,7 +254,7 @@ export async function extractAndRecordTopics(
       messages.map((m) => ({
         role: m.role as "user" | "assistant" | "system",
         content: m.content,
-      }))
+      })),
     );
 
     // Record the topics

@@ -5,7 +5,8 @@ import { createContext, useCallback, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 
 // Temporary user ID - will be replaced with auth later
-const DEFAULT_USER_ID = 'user_demo_123'
+// HARDCODED for development to ensure consistent user across sessions
+const DEFAULT_USER_ID = 'user_1766225500960_0hanw9e' // 'user_dev_echo_learn'
 
 interface UserContextType {
   userId: string
@@ -17,19 +18,24 @@ const UserContext = createContext<UserContextType | null>(null)
 
 // Get or create a persistent user ID from localStorage
 function getStoredUserId(): string {
-  if (typeof window === 'undefined') {
-    return DEFAULT_USER_ID
-  }
+  // TODO: Remove this hardcoded return when auth is implemented
+  // For development, always use the same user ID to persist data
+  return DEFAULT_USER_ID
 
-  const stored = localStorage.getItem('echo-learn-user-id')
-  if (stored) {
-    return stored
-  }
-
-  // Generate a new user ID if none exists
-  const newId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-  localStorage.setItem('echo-learn-user-id', newId)
-  return newId
+  // Original logic - uncomment when auth is ready:
+  // if (typeof window === 'undefined') {
+  //   return DEFAULT_USER_ID
+  // }
+  //
+  // const stored = localStorage.getItem('echo-learn-user-id')
+  // if (stored) {
+  //   return stored
+  // }
+  //
+  // // Generate a new user ID if none exists
+  // const newId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+  // localStorage.setItem('echo-learn-user-id', newId)
+  // return newId
 }
 
 export function UserProvider({ children }: { children: ReactNode }) {
