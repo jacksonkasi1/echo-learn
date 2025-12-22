@@ -20,7 +20,7 @@ import {
   upsertWithEmbedding,
 } from "@repo/storage";
 import {
-  extractTextWithMistralOCR,
+  extractTextWithGeminiOCR,
   isSupportedFileType,
   chunkText,
 } from "@repo/ingest";
@@ -73,7 +73,7 @@ ingestRoute.get("/status/:fileId", async (c: Context) => {
  * POST /api/ingest
  * Process an uploaded file through the complete ingestion pipeline:
  * 1. Fetch file from GCS
- * 2. OCR extraction (Mistral)
+ * 2. OCR extraction (Gemini 2.0 Flash - multimodal)
  * 3. Text chunking
  * 4. Store in Vector DB with Upstash native embedding (BAAI model)
  * 5. Knowledge graph generation (Gemini)
@@ -157,13 +157,13 @@ ingestRoute.post("/", zValidator("json", ingestSchema), async (c: Context) => {
         const response = await fetch(signedUrl);
         ocrText = await response.text();
       } else if (isSupportedFileType(metadata.contentType)) {
-        // Use Mistral OCR for PDFs, images, and documents
+        // Use Gemini 2.0 Flash for PDFs, images, and documents (multimodal)
         logger.info("Starting OCR extraction", {
           fileId,
           contentType: metadata.contentType,
         });
 
-        const ocrResult = await extractTextWithMistralOCR(signedUrl);
+        const ocrResult = await extractTextWithGeminiOCR(signedUrl);
         ocrText = ocrResult.markdown;
 
         // Cache the result
@@ -219,13 +219,7 @@ ingestRoute.post("/", zValidator("json", ingestSchema), async (c: Context) => {
       averageChunkSize: chunkingResult.averageChunkSize,
     });
 
-    // 5. Store in Vector DB with Upstash native embedding
-    // Upstash automatically generates embeddings server-side using BAAI model
-    logger.info("Storing chunks with Upstash native embedding", {
-      fileId,
-      chunkCount: chunkingResult.totalChunks,
-    });
-
+    // 5. Prepare vector items for storage
     const vectorItems = chunkingResult.chunks.map((chunk) => ({
       id: chunk.id,
       data: chunk.content, // Text - Upstash generates embedding automatically
@@ -239,29 +233,43 @@ ingestRoute.post("/", zValidator("json", ingestSchema), async (c: Context) => {
       } as VectorMetadata,
     }));
 
-    await upsertWithEmbedding(vectorItems);
-
-    logger.info("Chunks stored successfully with Upstash embedding", {
-      fileId,
-      chunkCount: vectorItems.length,
-    });
-
-    // 7. Generate Knowledge Graph
-    logger.info("Starting knowledge graph generation", { fileId });
-
-    // Use a subset of chunks for graph generation to avoid rate limits
+    // Prepare chunks for graph generation
     const chunksForGraph = chunkingResult.chunks.slice(0, 10).map((chunk) => ({
       content: chunk.content,
       id: chunk.id,
     }));
 
-    const graph = await generateGraphFromChunks(chunksForGraph, fileId);
+    // 6. Run vector storage and knowledge graph generation in PARALLEL
+    // These are independent operations that can execute concurrently
+    logger.info(
+      "Starting parallel vector storage and knowledge graph generation",
+      {
+        fileId,
+        chunkCount: chunkingResult.totalChunks,
+        graphChunkCount: chunksForGraph.length,
+      },
+    );
 
-    logger.info("Knowledge graph generated", {
-      fileId,
-      nodeCount: graph.nodes.length,
-      edgeCount: graph.edges.length,
-    });
+    const [, graph] = await Promise.all([
+      // Vector DB storage with Upstash native embedding
+      upsertWithEmbedding(vectorItems).then(() => {
+        logger.info("Chunks stored successfully with Upstash embedding", {
+          fileId,
+          chunkCount: vectorItems.length,
+        });
+      }),
+      // Knowledge graph generation (now parallelized internally too)
+      generateGraphFromChunks(chunksForGraph, fileId, { concurrency: 10 }),
+    ]);
+
+    logger.info(
+      "Parallel processing completed - vector storage and graph generation",
+      {
+        fileId,
+        nodeCount: graph.nodes.length,
+        edgeCount: graph.edges.length,
+      },
+    );
 
     // 8. Merge Graph into User's Main Graph
     logger.info("Merging knowledge graph", { fileId, userId });

@@ -15,12 +15,12 @@
 │  │   TURBO REPO         │     │    EXTERNAL SERVICES │                      │
 │  │                      │     │                      │                      │
 │  │  ┌────────────────┐  │     │  • 11Labs (Voice)    │                      │
-│  │  │ apps/web       │  │     │  • Gemini (LLM)      │                      │
-│  │  │ (TanStack Start) │  │     │  • Mistral (OCR)     │                      │
+│  │  │ apps/web       │  │     │  • Gemini 2.0 Flash  │                      │
+│  │  │ (TanStack Start)│  │     │    (LLM + OCR)       │                      │
 │  │  └────────────────┘  │     │  • Google Cloud      │                      │
 │  │                      │     │  • Upstash (Vector)  │                      │
 │  │  ┌────────────────┐  │     │  • Upstash (Redis)   │                      │
-│  │  │ apps/server       │  │     │                      │                      │
+│  │  │ apps/server    │  │     │                      │                      │
 │  │  │ (Hono.js)      │  │     └──────────────────────┘                      │
 │  │  └────────────────┘  │                                                   │
 │  │                      │                                                   │
@@ -47,6 +47,10 @@
 - **Turborepo** - Monorepo build system and task orchestration
 - **Bun Workspaces** - Monorepo workspace management
 
+**AI & ML:**
+- **Gemini 2.0 Flash** - Primary LLM for response generation, OCR, and embeddings
+- **Multimodal Input** - PDF, Images, Documents via Gemini's native multimodal capabilities
+
 **Why Bun:**
 - Fast package installation and execution
 - Native TypeScript support
@@ -59,12 +63,56 @@
 
 ## Pre-Development Checklist
 
-- [ ] Turbo Repo initialized with `apps/web` and `apps/server`
-- [ ] Bun installed as primary runtime
-- [ ] TypeScript strict mode enabled
-- [ ] ESLint + Prettier configured
-- [ ] Environment variables template created
-- [ ] Shared packages structure created
+### Environment Setup
+- [x] Bun installed as primary runtime (`bun --version`)
+- [x] Turbo Repo initialized with `apps/web` and `apps/server`
+- [x] TypeScript strict mode enabled
+- [x] ESLint + Prettier configured
+- [x] Shared packages structure created
+
+### External Service Accounts
+- [ ] Google Cloud Project created
+- [ ] Google Cloud Storage bucket created
+- [ ] Gemini API key obtained (GOOGLE_GENERATIVE_AI_API_KEY)
+- [ ] Upstash Vector database created
+- [ ] Upstash Redis database created
+- [ ] 11Labs account and Agent created
+- [ ] 11Labs API key obtained
+
+### Environment Variables Template
+Create `.env` file with:
+```env
+# Upstash Vector
+UPSTASH_VECTOR_REST_URL=
+UPSTASH_VECTOR_REST_TOKEN=
+
+# Upstash Redis
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+
+# Google Cloud Storage
+GCS_BUCKET_NAME=
+GCS_PROJECT_ID=
+GCS_KEY_FILE=              # Path to service account JSON key file
+GCS_PUBLIC_URL=            # Public URL for file access
+
+# Gemini (used for LLM, OCR, and Embeddings)
+GOOGLE_GENERATIVE_AI_API_KEY=
+GEMINI_MODEL=gemini-2.0-flash
+
+# 11Labs
+ELEVENLABS_API_KEY=
+ELEVENLABS_AGENT_ID=
+ELEVENLABS_AGENT_SECRET=
+```
+
+### Package Dependencies Verification
+- [ ] `@ai-sdk/google` installed in `@repo/llm`
+- [ ] `@ai-sdk/google` installed in `@repo/ingest`
+- [ ] `@google-cloud/storage` installed in `@repo/gcs`
+- [ ] `@upstash/vector` installed in `@repo/storage`
+- [ ] `@upstash/redis` installed in `@repo/storage`
+- [ ] `@11labs/react` installed in `apps/web`
 
 ---
 
@@ -103,6 +151,16 @@
    - Utility functions used across apps
    - Constants and enums
 
+5. **`@repo/ingest`** - Document ingestion pipeline
+   - Gemini multimodal OCR (replaces Mistral)
+   - Text chunking
+   - Supports PDF, images, and documents
+
+6. **`@repo/llm`** - LLM utilities
+   - Gemini response generation
+   - Streaming support
+   - Prompt building
+
 ### Benefits of Package Architecture
 
 1. **Code Reusability:** Write once, use everywhere
@@ -118,6 +176,7 @@
 // ** import utils
 import { logger } from '@repo/logs'
 import { createGCSClient, getSignedUploadUrl } from '@repo/gcs'
+import { extractTextWithGeminiOCR } from '@repo/ingest/ocr'
 
 // ** import types
 import type { SharedType } from '@repo/shared'
@@ -137,14 +196,16 @@ import type { SharedType } from '@repo/shared'
 
 **Description:** Initialize the monorepo structure with Vite frontend and Hono.js backend using Bun runtime
 
+**Status:** ✅ COMPLETED
+
 **Subtasks:**
-- [ ] Install Bun runtime globally
-- [ ] Initialize Turbo Repo with Bun workspaces
-- [ ] Create `apps/web` (TanStack Start + TypeScript)
-- [ ] Create `apps/server` (Hono.js + TypeScript + Bun runtime)
-- [ ] Create shared packages for reusability
-- [ ] Configure path aliases and tsconfig references
-- [ ] Set up TypeScript configuration inheritance
+- [x] Install Bun runtime globally
+- [x] Initialize Turbo Repo with Bun workspaces
+- [x] Create `apps/web` (TanStack Start + TypeScript)
+- [x] Create `apps/server` (Hono.js + TypeScript + Bun runtime)
+- [x] Create shared packages for reusability
+- [x] Configure path aliases and tsconfig references
+- [x] Set up TypeScript configuration inheritance
 
 **File Structure:**
 ```
@@ -159,7 +220,7 @@ echo-learn/
 │   │   ├── vite.config.ts
 │   │   └── tsconfig.json
 │   │
-│   └── server/                 # Hono.js backend (Bun runtime)
+│   └── server/              # Hono.js backend (Bun runtime)
 │       ├── src/
 │       │   ├── routes/
 │       │   ├── lib/
@@ -184,6 +245,22 @@ echo-learn/
 │   │   │   └── index.ts
 │   │   └── package.json
 │   │
+│   ├── ingest/              # Document ingestion (OCR, chunking)
+│   │   ├── src/
+│   │   │   ├── ocr/
+│   │   │   │   ├── gemini-ocr.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── chunker/
+│   │   │   └── index.ts
+│   │   └── package.json
+│   │
+│   ├── llm/                 # LLM utilities
+│   │   ├── src/
+│   │   │   ├── generate.ts
+│   │   │   ├── prompt/
+│   │   │   └── index.ts
+│   │   └── package.json
+│   │
 │   ├── logs/                # Logging utilities
 │   │   ├── src/
 │   │   │   └── index.ts
@@ -196,8 +273,8 @@ echo-learn/
 │       └── package.json
 │
 ├── turbo.json
-├── bun.lockb              # Bun lock file (binary)
-└── package.json           # Includes "workspaces" field for Bun
+├── bun.lock
+└── package.json
 ```
 
 **TypeScript Configuration Pattern:**
@@ -241,10 +318,10 @@ echo-learn/
 ```
 
 **✅ Validation Checklist:**
-- [ ] Bun installed: `bun --version`
-- [ ] Type check: `bun run turbo typecheck`
-- [ ] Build check: `bun run turbo build`
-- [ ] Lint check: `bun run turbo lint`
+- [x] Bun installed: `bun --version`
+- [x] Type check: `bun run turbo typecheck`
+- [x] Build check: `bun run turbo build`
+- [x] Lint check: `bun run turbo lint`
 
 ---
 
@@ -256,10 +333,10 @@ echo-learn/
 - [ ] Create `.env.example` with all required keys
 - [ ] Create `@repo/gcs` package for Google Cloud Storage
 - [ ] Create `@repo/logs` package for logging
-- [ ] Set up Upstash Vector client in `apps/server`
-- [ ] Set up Upstash Redis client in `apps/server`
-- [ ] Set up Gemini AI SDK in `apps/server`
-- [ ] Set up Mistral OCR client in `apps/server`
+- [ ] Set up Upstash Vector client in `@repo/storage`
+- [ ] Set up Upstash Redis client in `@repo/storage`
+- [ ] Set up Gemini AI SDK in `@repo/llm`
+- [ ] Set up Gemini OCR in `@repo/ingest`
 
 **Environment Variables:**
 ```env
@@ -277,14 +354,13 @@ GCS_PROJECT_ID=
 GCS_KEY_FILE=              # Path to service account JSON key file
 GCS_PUBLIC_URL=            # Public URL for file access
 
-# Gemini
+# Gemini (All-in-one: LLM, OCR, Embeddings)
 GOOGLE_GENERATIVE_AI_API_KEY=
-
-# Mistral OCR
-MISTRAL_API_KEY=
+GEMINI_MODEL=gemini-2.0-flash
 
 # 11Labs (for later phases)
 ELEVENLABS_API_KEY=
+ELEVENLABS_AGENT_ID=
 ELEVENLABS_AGENT_SECRET=
 ```
 
@@ -363,7 +439,7 @@ export { listFiles, fileExists } from './list'
 
 **Critical Code - Upstash Clients Setup:**
 ```typescript
-// apps/server/src/lib/upstash/vector.ts
+// packages/storage/src/vector.ts
 
 // ** import lib
 import { Index } from '@upstash/vector'
@@ -399,7 +475,7 @@ export async function searchVectors(queryVector: number[], topK = 5) {
 ```
 
 ```typescript
-// apps/server/src/lib/upstash/redis.ts
+// packages/storage/src/redis.ts
 
 // ** import lib
 import { Redis } from '@upstash/redis'
@@ -425,7 +501,21 @@ export const redis = new Redis({
 - [ ] Create signed URL generation endpoint using @repo/gcs
 - [ ] Create file upload confirmation endpoint
 - [ ] Store file metadata in Redis
-- [ ] Support: PDF, TXT, MD, PPT, DOCX, PPTX formats
+- [ ] Support multimodal formats: PDF, TXT, MD, PPT, DOCX, PPTX, PNG, JPG, JPEG, WEBP, GIF
+
+**Supported File Types (Multimodal):**
+| Category | Extensions | MIME Types |
+|----------|------------|------------|
+| Documents | PDF | application/pdf |
+| Documents | DOCX | application/vnd.openxmlformats-officedocument.wordprocessingml.document |
+| Documents | PPTX | application/vnd.openxmlformats-officedocument.presentationml.presentation |
+| Documents | TXT | text/plain |
+| Documents | MD | text/markdown |
+| Images | PNG | image/png |
+| Images | JPG/JPEG | image/jpeg |
+| Images | WEBP | image/webp |
+| Images | GIF | image/gif |
+| Images | TIFF | image/tiff |
 
 **API Endpoints:**
 - `POST /api/upload/signed-url` - Get signed upload URL
@@ -445,7 +535,7 @@ import { z } from 'zod'
 
 // ** import utils
 import { createGCSClient, getSignedUploadUrl } from '@repo/gcs'
-import { redis } from '@/lib/upstash/redis'
+import { redis } from '@repo/storage'
 import { logger } from '@repo/logs'
 
 const uploadRoute = new Hono()
@@ -456,10 +546,29 @@ const gcsClient = createGCSClient({
   keyFilename: process.env.GCS_KEY_FILE!,
 })
 
+// Supported file types for multimodal OCR
+const SUPPORTED_CONTENT_TYPES = [
+  // Documents
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'text/markdown',
+  // Images
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+  'image/tiff',
+]
+
 // Request schema
 const signedUrlSchema = z.object({
   fileName: z.string().min(1),
-  contentType: z.string(),
+  contentType: z.string().refine(
+    (ct) => SUPPORTED_CONTENT_TYPES.includes(ct),
+    { message: 'Unsupported file type for OCR processing' }
+  ),
   userId: z.string(),
 })
 
@@ -475,7 +584,7 @@ uploadRoute.post(
         gcsClient,
         process.env.GCS_BUCKET_NAME!,
         {
-          organizationId: userId, // Using userId as organizationId for simplicity
+          organizationId: userId,
           fileName,
           contentType,
         }
@@ -483,6 +592,10 @@ uploadRoute.post(
 
       // Generate file ID
       const fileId = `file_${Date.now()}_${Math.random().toString(36).slice(2)}`
+
+      // Determine file category
+      const isImage = contentType.startsWith('image/')
+      const fileCategory = isImage ? 'image' : 'document'
 
       // Store file metadata in Redis
       await redis.set(`file:${fileId}:metadata`, {
@@ -492,6 +605,7 @@ uploadRoute.post(
         filePath,
         userId,
         contentType,
+        fileCategory,
         status: 'pending_upload',
         createdAt: new Date().toISOString(),
       })
@@ -499,7 +613,10 @@ uploadRoute.post(
       // Add to user's file list
       await redis.sadd(`user:${userId}:files`, fileId)
 
-      logger.info(`Generated signed URL for file: ${fileName}`)
+      logger.info(`Generated signed URL for file: ${fileName}`, {
+        fileCategory,
+        contentType,
+      })
 
       return c.json({
         signedUrl,
@@ -524,154 +641,423 @@ export { uploadRoute }
 
 ---
 
-## Task 1.4: Mistral OCR Integration
+## Task 1.4: Gemini 2.0 Flash Multimodal OCR
 
-**Description:** Extract text content from uploaded files using Mistral OCR with retry logic and confidence scoring
+**Description:** Extract text content from uploaded files using Gemini 2.0 Flash with native multimodal support. This replaces Mistral OCR with a unified Gemini-based approach.
+
+**Why Gemini 2.0 Flash for OCR:**
+- Native multimodal support (images, PDFs, documents)
+- Single API for both OCR and LLM tasks
+- Faster processing with Flash model
+- Better context understanding
+- No need for separate OCR service
 
 **Subtasks:**
-- [ ] Create OCR processing function with Mistral SDK
+- [ ] Create Gemini OCR processing function with multimodal input
 - [ ] Implement retry logic (3 attempts with exponential backoff)
-- [ ] Handle PDF, images, and document formats (DOCX, PPTX)
+- [ ] Handle all multimodal formats: PDF, images, DOCX, PPTX
 - [ ] Calculate OCR confidence score
-- [ ] Return clean Markdown output with page breaks
-- [ ] Include base64 images in response
+- [ ] Return clean Markdown output with page structure
+- [ ] Extract and preserve images from documents
 - [ ] Cache OCR results temporarily
 
-**Critical Code - Mistral OCR with Retry Logic:**
+**Supported Input Types:**
+| Type | Gemini Part Type | Notes |
+|------|------------------|-------|
+| PDF | `fileData` with mimeType | Native PDF support |
+| Images | `inlineData` or `fileData` | PNG, JPEG, WEBP, GIF, TIFF |
+| DOCX/PPTX | `fileData` | Via Google Cloud Storage URL |
+
+**Critical Code - Gemini 2.0 Flash Multimodal OCR:**
 ```typescript
-// apps/server/src/lib/ocr/mistral-ocr.ts
+// packages/ingest/src/ocr/gemini-ocr.ts
 
 // ** import types
-import type { OcrResult } from '@/types/ocr'
+import type { OcrResult, OcrOptions } from "@repo/shared";
+import type { Part } from "@google/generative-ai";
 
 // ** import lib
-import { Mistral } from '@mistralai/mistralai'
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // ** import utils
-import { logger } from '@repo/logs'
+import { logger } from "@repo/logs";
 
-const mistral = new Mistral({
-  apiKey: process.env.MISTRAL_API_KEY!,
-})
+// Initialize Gemini client
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY!);
 
-interface RetryOptions {
-  maxAttempts: number
-  baseDelay: number // milliseconds
-}
+// Default model for OCR - Gemini 2.0 Flash has excellent multimodal capabilities
+const OCR_MODEL = "gemini-2.0-flash";
 
-const DEFAULT_RETRY_OPTIONS: RetryOptions = {
-  maxAttempts: 3,
-  baseDelay: 2000, // 2 seconds
+/**
+ * Sleep utility for retry delays
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * Extract text from document using Mistral OCR with retry logic
- * Supports: PDF, images, DOCX, PPTX
+ * Determine content type from file extension or URL
  */
-export async function extractTextWithMistralOCR(
-  fileUrl: string,
-  retryOptions: RetryOptions = DEFAULT_RETRY_OPTIONS
-): Promise<OcrResult> {
-  let lastError: Error | null = null
+function getMimeType(fileUrl: string): string {
+  const cleanUrl = fileUrl.split("?")[0].toLowerCase();
+  const extension = cleanUrl.split(".").pop();
+  
+  const mimeTypes: Record<string, string> = {
+    pdf: "application/pdf",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
+    gif: "image/gif",
+    tiff: "image/tiff",
+    tif: "image/tiff",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    txt: "text/plain",
+    md: "text/markdown",
+  };
 
-  for (let attempt = 1; attempt <= retryOptions.maxAttempts; attempt++) {
-    try {
-      logger.info(`Mistral OCR attempt ${attempt}/${retryOptions.maxAttempts}`)
+  return mimeTypes[extension || ""] || "application/octet-stream";
+}
 
-      const response = await mistral.chat.complete({
-        model: 'mistral-ocr-latest',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'document_url',
-                documentUrl: fileUrl,
-              },
-            ],
-          },
-        ],
-        includeImageBase64: true,
-        timeout: 300000, // 5 minutes for large files
-      })
+/**
+ * Check if file type is an image
+ */
+function isImageType(mimeType: string): boolean {
+  return mimeType.startsWith("image/");
+}
 
-      // Extract markdown from response
-      const markdown = response.choices?.[0]?.message?.content || ''
+/**
+ * Fetch file and convert to base64 for inline data
+ */
+async function fetchFileAsBase64(fileUrl: string): Promise<string> {
+  const response = await fetch(fileUrl);
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  return buffer.toString("base64");
+}
 
-      // Calculate confidence score
-      const confidence = calculateOCRConfidence(markdown, response)
+/**
+ * Build the OCR extraction prompt based on file type
+ */
+function buildOcrPrompt(mimeType: string): string {
+  const isImage = isImageType(mimeType);
+  
+  if (isImage) {
+    return `
+You are an expert OCR system. Extract ALL text content from this image with high accuracy.
 
-      return {
-        markdown,
-        confidence,
-        pageCount: countPages(markdown),
-        tokenUsage: {
-          promptTokens: response.usage?.promptTokens || 0,
-          completionTokens: response.usage?.completionTokens || 0,
-        },
-      }
-    } catch (error) {
-      lastError = error as Error
-      logger.error(`Mistral OCR attempt ${attempt} failed:`, error)
+OUTPUT FORMAT:
+- Return the extracted text as clean Markdown
+- Preserve the visual hierarchy using Markdown headers (# ## ###)
+- Preserve lists, tables, and formatting where possible
+- If there are diagrams or charts, describe them in [brackets]
+- For handwritten text, do your best to transcribe accurately
+- Mark uncertain text with [?]
 
-      // If not the last attempt, wait before retrying
-      if (attempt < retryOptions.maxAttempts) {
-        const delay = retryOptions.baseDelay * Math.pow(2, attempt - 1)
-        logger.info(`Retrying in ${delay}ms...`)
-        await new Promise((resolve) => setTimeout(resolve, delay))
-      }
-    }
+IMPORTANT:
+- Extract EVERY piece of text visible in the image
+- Maintain the logical reading order
+- Preserve paragraph breaks
+- Do not add any commentary or explanations, only the extracted content
+`.trim();
   }
 
-  // All attempts failed
-  throw new Error(
-    `Mistral OCR failed after ${retryOptions.maxAttempts} attempts: ${lastError?.message}`
-  )
+  return `
+You are an expert document OCR and extraction system. Extract ALL text content from this document with high accuracy.
+
+OUTPUT FORMAT:
+- Return the extracted text as clean Markdown
+- Preserve document structure with appropriate Markdown headers
+- Maintain the original hierarchy (titles, sections, subsections)
+- Preserve lists (bulleted and numbered)
+- Preserve tables in Markdown table format
+- Mark page breaks with: --- PAGE BREAK ---
+- For images/figures in the document, add: [Figure: brief description]
+- For charts/diagrams, add: [Chart: brief description]
+
+IMPORTANT:
+- Extract EVERY piece of text from the document
+- Maintain the logical reading order
+- Preserve all formatting cues
+- Do not add any commentary, only the extracted content
+- If multiple pages, process all pages
+`.trim();
+}
+
+/**
+ * Extract text from document using Gemini 2.0 Flash with multimodal capabilities
+ * Supports: PDF, images (PNG, JPEG, WEBP, GIF, TIFF), DOCX, PPTX
+ */
+export async function extractTextWithGeminiOCR(
+  fileUrl: string,
+  options: OcrOptions = {}
+): Promise<OcrResult> {
+  const startTime = Date.now();
+  const fileName = fileUrl.split("/").pop()?.split("?")[0] || "unknown-file";
+  const mimeType = getMimeType(fileUrl);
+
+  try {
+    logger.info("Starting OCR processing with Gemini 2.0 Flash", {
+      fileName,
+      mimeType,
+      fileUrl: fileUrl.substring(0, 50) + "...",
+    });
+
+    const maxRetries = options.maxAttempts || 3;
+    const baseDelay = options.baseDelay || 2000;
+    let lastError: Error | null = null;
+    let extractedText = "";
+
+    // Get the model
+    const model = genAI.getGenerativeModel({ 
+      model: OCR_MODEL,
+      generationConfig: {
+        temperature: 0.1, // Low temperature for accurate extraction
+        maxOutputTokens: 8192,
+      },
+    });
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        logger.info(`OCR attempt ${attempt} of ${maxRetries}`, {
+          fileName,
+          attempt,
+        });
+
+        // Build the content parts for multimodal input
+        const parts: Part[] = [];
+
+        // Add the file as inline data or file reference
+        if (isImageType(mimeType)) {
+          // For images, use inline base64 data
+          const base64Data = await fetchFileAsBase64(fileUrl);
+          parts.push({
+            inlineData: {
+              mimeType,
+              data: base64Data,
+            },
+          });
+        } else {
+          // For documents (PDF, DOCX, PPTX), use file data
+          // Note: For GCS URLs, Gemini can access them directly if public
+          // For signed URLs or private files, we need to fetch and send as base64
+          const base64Data = await fetchFileAsBase64(fileUrl);
+          parts.push({
+            inlineData: {
+              mimeType,
+              data: base64Data,
+            },
+          });
+        }
+
+        // Add the extraction prompt
+        parts.push({
+          text: buildOcrPrompt(mimeType),
+        });
+
+        // Generate content with multimodal input
+        const result = await model.generateContent(parts);
+        const response = result.response;
+        extractedText = response.text();
+
+        if (extractedText && extractedText.length > 0) {
+          logger.info("Gemini OCR extraction successful", {
+            fileName,
+            attempt,
+            textLength: extractedText.length,
+          });
+          break;
+        } else {
+          throw new Error("No text extracted from document");
+        }
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        
+        logger.warn(`OCR attempt ${attempt} failed`, {
+          fileName,
+          attempt,
+          maxRetries,
+          error: lastError.message,
+        });
+
+        if (attempt < maxRetries) {
+          const delayMs = baseDelay * Math.pow(2, attempt - 1);
+          logger.info(`Retrying OCR in ${delayMs}ms`, { fileName });
+          await sleep(delayMs);
+        }
+      }
+    }
+
+    if (!extractedText || extractedText.length === 0) {
+      throw new Error(
+        `Failed to extract text after ${maxRetries} attempts. ` +
+        `Last error: ${lastError?.message || "Unknown error"}`
+      );
+    }
+
+    // Calculate page count from page break markers
+    const pageBreaks = extractedText.match(/---\s*PAGE\s*BREAK\s*---/gi);
+    const pageCount = pageBreaks ? pageBreaks.length + 1 : 1;
+
+    // Calculate confidence score
+    const confidence = calculateOCRConfidence(extractedText, mimeType);
+
+    // Build result
+    const result: OcrResult = {
+      markdown: extractedText,
+      confidence,
+      pageCount,
+      tokenUsage: {
+        promptTokens: 0, // Gemini doesn't expose this in basic API
+        completionTokens: 0,
+      },
+    };
+
+    const processingTimeMs = Date.now() - startTime;
+
+    logger.info("Gemini OCR processing completed successfully", {
+      fileName,
+      mimeType,
+      textLength: extractedText.length,
+      confidence,
+      pageCount,
+      processingTimeMs,
+    });
+
+    return result;
+  } catch (error) {
+    const processingTimeMs = Date.now() - startTime;
+    logger.error("Gemini OCR processing failed", {
+      fileName,
+      mimeType,
+      processingTimeMs,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 }
 
 /**
  * Calculate OCR confidence score based on content quality indicators
- * Returns: 0-100 confidence score
  */
-function calculateOCRConfidence(markdown: string, response: any): number {
-  let confidence = 70 // Base confidence
+function calculateOCRConfidence(markdown: string, mimeType: string): number {
+  let confidence = 70; // Base confidence
 
   // Boost for technical terms (study materials often have specific terminology)
-  const technicalTerms = /(\b[A-Z]{2,}\b|[a-z]+ology|[a-z]+tion)/g
-  const technicalMatches = markdown.match(technicalTerms)
+  const technicalTerms = /(\b[A-Z]{2,}\b|[a-z]+ology|[a-z]+tion)/g;
+  const technicalMatches = markdown.match(technicalTerms);
   if (technicalMatches && technicalMatches.length > 10) {
-    confidence += 5
+    confidence += 5;
   }
 
-  // Boost for structured content (checkboxes, dates, numbers)
-  if (/\[\s*[xX✓]\s*\]/.test(markdown)) confidence += 3 // Checkboxes
-  if (/\d{1,4}[-/]\d{1,2}[-/]\d{1,4}/.test(markdown)) confidence += 2 // Dates
-  if (/\d+\.?\d*\s*(mg|ml|g|kg)/.test(markdown)) confidence += 3 // Dosages/measurements
+  // Boost for structured content
+  if (/\[\s*[xX✓]\s*\]/.test(markdown)) confidence += 3; // Checkboxes
+  if (/\d{1,4}[-/]\d{1,2}[-/]\d{1,4}/.test(markdown)) confidence += 2; // Dates
+  if (/\d+\.?\d*\s*(mg|ml|g|kg|cm|mm|m|km)/.test(markdown)) confidence += 3; // Measurements
 
   // Boost for markdown formatting (indicates structure preservation)
-  if (/^#{1,6}\s+/m.test(markdown)) confidence += 5 // Headers
-  if (/\n-\s+|\n\d+\.\s+/.test(markdown)) confidence += 3 // Lists
+  if (/^#{1,6}\s+/m.test(markdown)) confidence += 5; // Headers
+  if (/\n-\s+|\n\d+\.\s+/.test(markdown)) confidence += 3; // Lists
+  if (/\|.*\|.*\|/.test(markdown)) confidence += 3; // Tables
+  if (/```[\s\S]*?```/.test(markdown)) confidence += 3; // Code blocks
 
-  // Token usage ratio (quality indicator)
-  const tokenUsage = response.usage
-  if (tokenUsage) {
-    const ratio = tokenUsage.completionTokens / (tokenUsage.promptTokens || 1)
-    if (ratio > 0.5) confidence += 5
+  // Content length checks
+  if (markdown.length < 100) confidence -= 20; // Too short
+  if (markdown.length < 500) confidence -= 10;
+  if (markdown.length > 1000) confidence += 5;
+  if (markdown.length > 5000) confidence += 5;
+
+  // Penalties for OCR artifacts
+  if (/[�]/.test(markdown)) confidence -= 10; // Replacement characters
+  if (/[^\x00-\x7F]{10,}/.test(markdown)) confidence -= 5; // Long non-ASCII sequences
+
+  // Bonus for images (multimodal processing)
+  if (isImageType(mimeType)) {
+    confidence += 5; // Gemini excels at image understanding
   }
 
-  // Penalties
-  if (markdown.length < 100) confidence -= 10 // Too short
-  if (/[�\uFFFD]/.test(markdown)) confidence -= 5 // Replacement characters (OCR artifacts)
-
-  return Math.min(100, Math.max(0, confidence))
+  return Math.min(100, Math.max(0, confidence));
 }
 
 /**
- * Count pages by looking for page break markers
+ * Check if a file type is supported by Gemini multimodal OCR
  */
-function countPages(markdown: string): number {
-  const pageBreaks = markdown.match(/---\s*page\s*\d+\s*---/gi)
-  return pageBreaks ? pageBreaks.length : 1
+export function isSupportedFileType(contentType: string): boolean {
+  const supportedTypes = [
+    // Documents
+    "application/pdf",
+    "text/plain",
+    "text/markdown",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    // Images
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/gif",
+    "image/tiff",
+  ];
+
+  return supportedTypes.includes(contentType);
+}
+
+/**
+ * Get file extension from content type
+ */
+export function getExtensionFromContentType(contentType: string): string {
+  const extensionMap: Record<string, string> = {
+    "application/pdf": "pdf",
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "image/tiff": "tiff",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "text/plain": "txt",
+    "text/markdown": "md",
+  };
+
+  return extensionMap[contentType] || "bin";
+}
+```
+
+**Package.json Update for @repo/ingest:**
+```json
+{
+  "name": "@repo/ingest",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./ocr": {
+      "import": "./src/ocr/index.ts",
+      "types": "./src/ocr/index.ts"
+    },
+    "./chunker": {
+      "import": "./src/chunker/index.ts",
+      "types": "./src/chunker/index.ts"
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/shared": "workspace:*",
+    "@repo/logs": "workspace:*",
+    "@google/generative-ai": "^0.21.0"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "typescript": "^5.7.2"
+  }
 }
 ```
 
@@ -694,10 +1080,10 @@ function countPages(markdown: string): number {
 
 **Critical Code - Chunker:**
 ```typescript
-// apps/server/src/lib/chunker/text-chunker.ts
+// packages/ingest/src/chunker/text-chunker.ts
 
 // ** import types
-import type { TextChunk } from '@/types/chunk'
+import type { TextChunk } from '@repo/shared'
 
 interface ChunkerOptions {
   chunkSize: number      // Target characters per chunk
@@ -752,10 +1138,48 @@ export function chunkText(
 }
 
 function splitRecursively(text: string, opts: ChunkerOptions): string[] {
-  // Implementation: try each separator in order
-  // Return array of chunks under chunkSize
-  // ... (detailed implementation)
-  return [text] // Placeholder
+  if (text.length <= opts.chunkSize) {
+    return [text]
+  }
+
+  // Try each separator in order
+  for (const separator of opts.separators) {
+    const parts = text.split(separator)
+    if (parts.length > 1) {
+      const result: string[] = []
+      let current = ''
+      
+      for (const part of parts) {
+        const potentialChunk = current ? current + separator + part : part
+        
+        if (potentialChunk.length <= opts.chunkSize) {
+          current = potentialChunk
+        } else {
+          if (current) {
+            result.push(current)
+          }
+          current = part
+        }
+      }
+      
+      if (current) {
+        result.push(current)
+      }
+      
+      return result.flatMap(chunk => 
+        chunk.length > opts.chunkSize 
+          ? splitRecursively(chunk, opts) 
+          : [chunk]
+      )
+    }
+  }
+
+  // Fallback: hard split at chunkSize
+  const result: string[] = []
+  for (let i = 0; i < text.length; i += opts.chunkSize - opts.chunkOverlap) {
+    result.push(text.slice(i, i + opts.chunkSize))
+  }
+  return result
 }
 ```
 
@@ -778,18 +1202,24 @@ function splitRecursively(text: string, opts: ChunkerOptions): string[] {
 
 **Critical Code - Embedding:**
 ```typescript
-// apps/server/src/lib/embedding/gemini-embed.ts
+// packages/llm/src/embedding.ts
 
 // ** import types
-import type { TextChunk } from '@/types/chunk'
+import type { TextChunk } from '@repo/shared'
 
 // ** import lib
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
+// ** import utils
+import { logger } from '@repo/logs'
+
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY!)
 
+// Use text-embedding model for embeddings
+const EMBEDDING_MODEL = 'text-embedding-004'
+
 export async function generateEmbedding(text: string): Promise<number[]> {
-  const model = genAI.getGenerativeModel({ model: 'embedding-001' })
+  const model = genAI.getGenerativeModel({ model: EMBEDDING_MODEL })
   
   const result = await model.embedContent(text)
   
@@ -804,6 +1234,8 @@ export async function generateEmbeddingsForChunks(
   // Process in batches of 10 to respect rate limits
   const batchSize = 10
   
+  logger.info(`Generating embeddings for ${chunks.length} chunks`)
+  
   for (let i = 0; i < chunks.length; i += batchSize) {
     const batch = chunks.slice(i, i + batchSize)
     
@@ -815,10 +1247,12 @@ export async function generateEmbeddingsForChunks(
       results.push({ chunk, embedding: embeddings[idx] })
     })
     
-    // Small delay between batches
+    // Small delay between batches to avoid rate limiting
     if (i + batchSize < chunks.length) {
       await new Promise(resolve => setTimeout(resolve, 100))
     }
+    
+    logger.info(`Processed ${Math.min(i + batchSize, chunks.length)}/${chunks.length} chunks`)
   }
   
   return results
@@ -844,15 +1278,18 @@ export async function generateEmbeddingsForChunks(
 
 **Critical Code - Graph Generator:**
 ```typescript
-// apps/server/src/lib/graph/graph-generator.ts
+// packages/graph/src/graph-generator.ts
 
 // ** import types
-import type { KnowledgeGraph, GraphNode, GraphEdge } from '@/types/graph'
+import type { KnowledgeGraph, GraphNode, GraphEdge } from '@repo/shared'
 
 // ** import lib
 import { google } from '@ai-sdk/google'
 import { generateObject } from 'ai'
 import { z } from 'zod'
+
+// ** import utils
+import { logger } from '@repo/logs'
 
 const graphSchema = z.object({
   nodes: z.array(z.object({
@@ -871,8 +1308,13 @@ export async function generateGraphFromText(
   text: string,
   fileId: string
 ): Promise<KnowledgeGraph> {
+  logger.info('Generating knowledge graph from text', { 
+    textLength: text.length,
+    fileId 
+  })
+
   const { object } = await generateObject({
-    model: google('gemini-1.5-flash'),
+    model: google('gemini-2.0-flash'),
     schema: graphSchema,
     prompt: `
       Analyze the following study material and extract a knowledge graph.
@@ -901,6 +1343,11 @@ export async function generateGraphFromText(
     sources: [fileId], // Track which files contribute to this edge
   }))
 
+  logger.info('Knowledge graph generated', {
+    nodeCount: normalizedNodes.length,
+    edgeCount: normalizedEdges.length,
+  })
+
   return {
     nodes: normalizedNodes,
     edges: normalizedEdges,
@@ -927,13 +1374,16 @@ export async function generateGraphFromText(
 
 **Critical Code - Graph Merger:**
 ```typescript
-// apps/server/src/lib/graph/graph-merger.ts
+// packages/graph/src/graph-merger.ts
 
 // ** import types
-import type { KnowledgeGraph, GraphNode, GraphEdge } from '@/types/graph'
+import type { KnowledgeGraph, GraphNode, GraphEdge } from '@repo/shared'
 
 // ** import lib
-import { redis } from '@/lib/upstash/redis'
+import { redis } from '@repo/storage'
+
+// ** import utils
+import { logger } from '@repo/logs'
 
 interface MergeResult {
   nodesAdded: number
@@ -976,7 +1426,6 @@ export async function mergeGraphIntoMain(
   for (const newNode of newGraph.nodes) {
     if (nodeMap.has(newNode.id)) {
       result.nodesUpdated++
-      // Optionally update metadata
     } else {
       nodeMap.set(newNode.id, newNode)
       result.nodesAdded++
@@ -993,10 +1442,9 @@ export async function mergeGraphIntoMain(
     }
 
     if (edgeMap.has(key)) {
-      // Edge exists - add this file to sources
       const existing = edgeMap.get(key)!
-      if (!existing.sources.includes(fileId)) {
-        existing.sources.push(fileId)
+      if (!existing.sources?.includes(fileId)) {
+        existing.sources = [...(existing.sources || []), fileId]
       }
       result.edgesUpdated++
     } else {
@@ -1012,6 +1460,8 @@ export async function mergeGraphIntoMain(
   }
 
   await redis.set(graphKey, mergedGraph)
+
+  logger.info('Graph merged successfully', { userId, ...result })
 
   return result
 }
@@ -1030,9 +1480,9 @@ export async function removeFileFromGraph(
   const updatedEdges = graph.edges
     .map(edge => ({
       ...edge,
-      sources: edge.sources.filter(s => s !== fileId),
+      sources: (edge.sources || []).filter(s => s !== fileId),
     }))
-    .filter(edge => edge.sources.length > 0) // Remove orphan edges
+    .filter(edge => (edge.sources?.length || 0) > 0)
 
   // Find nodes that still have connections
   const connectedNodes = new Set<string>()
@@ -1050,6 +1500,8 @@ export async function removeFileFromGraph(
     nodes: updatedNodes,
     edges: updatedEdges,
   })
+
+  logger.info('File removed from graph', { userId, fileId })
 }
 ```
 
@@ -1074,13 +1526,154 @@ export async function removeFileFromGraph(
 ```
 POST /api/ingest
   └─> Fetch file from GCS
-  └─> Mistral OCR (extract text)
+  └─> Gemini 2.0 Flash OCR (extract text - multimodal)
   └─> Chunk text
   └─> Generate embeddings (Gemini)
   └─> Store in Upstash Vector
   └─> Generate knowledge graph (Gemini)
   └─> Merge graph into Redis
   └─> Return success
+```
+
+**Critical Code - Ingestion Orchestrator:**
+```typescript
+// apps/server/src/routes/ingest/process.ts
+
+// ** import types
+import type { Context } from 'hono'
+
+// ** import lib
+import { Hono } from 'hono'
+import { zValidator } from '@hono/zod-validator'
+import { z } from 'zod'
+
+// ** import utils
+import { extractTextWithGeminiOCR } from '@repo/ingest/ocr'
+import { chunkText } from '@repo/ingest/chunker'
+import { generateEmbeddingsForChunks } from '@repo/llm'
+import { generateGraphFromText } from '@repo/graph'
+import { mergeGraphIntoMain } from '@repo/graph'
+import { upsertVectors, redis } from '@repo/storage'
+import { logger } from '@repo/logs'
+
+const ingestRoute = new Hono()
+
+const ingestSchema = z.object({
+  fileId: z.string(),
+  userId: z.string(),
+  fileUrl: z.string().url(),
+})
+
+ingestRoute.post(
+  '/process',
+  zValidator('json', ingestSchema),
+  async (c: Context) => {
+    const { fileId, userId, fileUrl } = c.req.valid('json')
+
+    try {
+      // Update status to processing
+      await redis.set(`file:${fileId}:status`, {
+        status: 'processing',
+        step: 'ocr',
+        startedAt: new Date().toISOString(),
+      })
+
+      logger.info('Starting ingestion pipeline', { fileId, userId })
+
+      // Step 1: OCR with Gemini 2.0 Flash (multimodal)
+      const ocrResult = await extractTextWithGeminiOCR(fileUrl)
+      
+      await redis.set(`file:${fileId}:status`, {
+        status: 'processing',
+        step: 'chunking',
+        ocrConfidence: ocrResult.confidence,
+      })
+
+      // Step 2: Chunk the extracted text
+      const chunks = chunkText(ocrResult.markdown, fileId)
+      
+      await redis.set(`file:${fileId}:status`, {
+        status: 'processing',
+        step: 'embedding',
+        chunkCount: chunks.length,
+      })
+
+      // Step 3: Generate embeddings
+      const embeddedChunks = await generateEmbeddingsForChunks(chunks)
+
+      // Step 4: Store in Vector DB
+      await upsertVectors(
+        embeddedChunks.map(({ chunk, embedding }) => ({
+          id: chunk.id,
+          vector: embedding,
+          metadata: {
+            content: chunk.content,
+            fileId: chunk.fileId,
+            chunkIndex: chunk.chunkIndex,
+            userId,
+          },
+        }))
+      )
+
+      await redis.set(`file:${fileId}:status`, {
+        status: 'processing',
+        step: 'graph',
+      })
+
+      // Step 5: Generate knowledge graph
+      const graph = await generateGraphFromText(ocrResult.markdown, fileId)
+
+      // Step 6: Merge into user's main graph
+      const mergeResult = await mergeGraphIntoMain(userId, graph, fileId)
+
+      // Step 7: Update status to completed
+      await redis.set(`file:${fileId}:status`, {
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+        stats: {
+          pageCount: ocrResult.pageCount,
+          confidence: ocrResult.confidence,
+          chunkCount: chunks.length,
+          nodesAdded: mergeResult.nodesAdded,
+          edgesAdded: mergeResult.edgesAdded,
+        },
+      })
+
+      logger.info('Ingestion pipeline completed', { 
+        fileId, 
+        userId,
+        chunkCount: chunks.length,
+        graphStats: mergeResult,
+      })
+
+      return c.json({
+        success: true,
+        fileId,
+        stats: {
+          pageCount: ocrResult.pageCount,
+          confidence: ocrResult.confidence,
+          chunkCount: chunks.length,
+          graphStats: mergeResult,
+        },
+      })
+    } catch (error) {
+      logger.error('Ingestion pipeline failed', { fileId, error })
+
+      await redis.set(`file:${fileId}:status`, {
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        failedAt: new Date().toISOString(),
+      })
+
+      return c.json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Processing failed' 
+      }, 500)
+    }
+  }
+)
+
+export { ingestRoute }
 ```
 
 **✅ Validation Checklist:**
@@ -1106,28 +1699,38 @@ POST /api/ingest
 // apps/server/src/routes/files/delete-file.ts
 
 // ** import lib
-import { vectorIndex } from '@/lib/upstash/vector'
-import { redis } from '@/lib/upstash/redis'
-import { removeFileFromGraph } from '@/lib/graph/graph-merger'
-import { Storage } from '@google-cloud/storage'
+import { vectorIndex, redis } from '@repo/storage'
+import { removeFileFromGraph } from '@repo/graph'
+import { deleteFileByUrl } from '@repo/gcs'
+
+// ** import utils
+import { logger } from '@repo/logs'
 
 export async function deleteFile(userId: string, fileId: string) {
-  // 1. Delete from Vector DB (filter by file_id)
-  await vectorIndex.delete({
+  logger.info('Starting file deletion', { userId, fileId })
+
+  // 1. Get file metadata
+  const metadata = await redis.get<{ filePath: string }>(`file:${fileId}:metadata`)
+
+  // 2. Delete from Vector DB (filter by file_id)
+  await vectorIndex.deleteMany({
     filter: `fileId = '${fileId}'`,
   })
 
-  // 2. Remove from Knowledge Graph
+  // 3. Remove from Knowledge Graph
   await removeFileFromGraph(userId, fileId)
 
-  // 3. Delete from GCS
-  const storage = new Storage()
-  const bucket = storage.bucket(process.env.GCS_BUCKET_NAME!)
-  await bucket.deleteFiles({ prefix: `users/${userId}/${fileId}/` })
+  // 4. Delete from GCS
+  if (metadata?.filePath) {
+    await deleteFileByUrl(metadata.filePath)
+  }
 
-  // 4. Remove file metadata
+  // 5. Remove file metadata and status
   await redis.del(`file:${fileId}:metadata`)
+  await redis.del(`file:${fileId}:status`)
   await redis.srem(`user:${userId}:files`, fileId)
+
+  logger.info('File deletion completed', { userId, fileId })
 
   return { success: true, deletedFileId: fileId }
 }
@@ -1162,7 +1765,7 @@ export async function deleteFile(userId: string, fileId: string) {
 
 // ** import types
 import type { Context } from 'hono'
-import type { ChatMessage, ChatCompletionResponse } from '@/types/openai'
+import type { ChatMessage, ChatCompletionResponse } from '@repo/shared'
 
 // ** import lib
 import { Hono } from 'hono'
@@ -1233,27 +1836,32 @@ export { chatRoute }
 
 **Critical Code - RAG Search:**
 ```typescript
-// apps/server/src/lib/rag/retrieve-context.ts
+// packages/rag/src/retrieve-context.ts
+
+// ** import types
+import type { RetrievedContext } from '@repo/shared'
 
 // ** import lib
-import { generateEmbedding } from '@/lib/embedding/gemini-embed'
-import { searchVectors } from '@/lib/upstash/vector'
+import { generateEmbedding } from '@repo/llm'
+import { searchVectors } from '@repo/storage'
 
-interface RetrievedContext {
-  chunks: string[]
-  sources: string[]
-}
+// ** import utils
+import { logger } from '@repo/logs'
 
 export async function retrieveContext(
   query: string,
   userId: string,
   topK: number = 5
 ): Promise<RetrievedContext> {
+  logger.info('Retrieving context for query', { queryLength: query.length, topK })
+
   // 1. Generate query embedding
   const queryEmbedding = await generateEmbedding(query)
 
-  // 2. Search Vector DB
-  const results = await searchVectors(queryEmbedding, topK)
+  // 2. Search Vector DB with user filter
+  const results = await searchVectors(queryEmbedding, topK, {
+    filter: `userId = '${userId}'`,
+  })
 
   // 3. Extract content and sources
   const chunks: string[] = []
@@ -1267,6 +1875,11 @@ export async function retrieveContext(
       sources.push(result.metadata.fileId as string)
     }
   }
+
+  logger.info('Context retrieved', { 
+    chunkCount: chunks.length, 
+    uniqueSources: [...new Set(sources)].length 
+  })
 
   return { chunks, sources: [...new Set(sources)] }
 }
@@ -1291,13 +1904,16 @@ export async function retrieveContext(
 
 **Critical Code - User Profile:**
 ```typescript
-// apps/server/src/lib/user/profile.ts
+// packages/analytics/src/user-profile.ts
 
 // ** import types
-import type { UserProfile } from '@/types/user'
+import type { UserProfile } from '@repo/shared'
 
 // ** import lib
-import { redis } from '@/lib/upstash/redis'
+import { redis } from '@repo/storage'
+
+// ** import utils
+import { logger } from '@repo/logs'
 
 const DEFAULT_PROFILE: UserProfile = {
   level: 'beginner',
@@ -1320,6 +1936,7 @@ export async function updateUserProfile(
   const current = await getUserProfile(userId)
   const updated = { ...current, ...updates }
   await redis.set(`user:${userId}:profile`, updated)
+  logger.info('User profile updated', { userId })
 }
 
 export async function markTopicCovered(
@@ -1329,6 +1946,7 @@ export async function markTopicCovered(
   for (const topic of topics) {
     await redis.sadd(`user:${userId}:covered`, topic)
   }
+  logger.info('Topics marked as covered', { userId, topicCount: topics.length })
 }
 ```
 
@@ -1351,12 +1969,12 @@ export async function markTopicCovered(
 
 **Critical Code - Prompt Builder:**
 ```typescript
-// apps/server/src/lib/prompt/system-prompt.ts
+// packages/llm/src/prompt/system-prompt.ts
 
 // ** import types
-import type { UserProfile } from '@/types/user'
+import type { UserProfile } from '@repo/shared'
 
-interface PromptContext {
+export interface PromptContext {
   knowledgeChunks: string[]
   userProfile: UserProfile
 }
@@ -1392,8 +2010,7 @@ ${knowledgeChunks.join('\n\n---\n\n')}
 
 ## Interruption Handling:
 - If the user says "Stop" or "Wait", acknowledge it briefly ("Okay, I'll pause.")
-- If the user says "Continue" or "Go on", check your last message in history
-- Resume from where you were interrupted with a transition like "As I was saying..."
+- If the user says "Continue" or "Go on", resume from where you were interrupted
 `.trim()
 }
 ```
@@ -1407,7 +2024,7 @@ ${knowledgeChunks.join('\n\n---\n\n')}
 
 ## Task 2.5: Gemini Response Generation (Streaming)
 
-**Description:** Call Gemini to generate response with streaming for low latency
+**Description:** Call Gemini 2.0 Flash to generate response with streaming for low latency
 
 **Subtasks:**
 - [ ] Implement streaming text generation
@@ -1415,53 +2032,7 @@ ${knowledgeChunks.join('\n\n---\n\n')}
 - [ ] Return stream to 11Labs
 - [ ] Track token usage
 
-**Critical Code - Streaming Response:**
-```typescript
-// apps/server/src/lib/llm/generate-response.ts
-
-// ** import types
-import type { ChatMessage } from '@/types/openai'
-
-// ** import lib
-import { google } from '@ai-sdk/google'
-import { streamText } from 'ai'
-
-interface GenerateOptions {
-  systemPrompt: string
-  messages: ChatMessage[]
-}
-
-export async function generateStreamingResponse(options: GenerateOptions) {
-  const { systemPrompt, messages } = options
-
-  const result = await streamText({
-    model: google('gemini-1.5-flash'),
-    system: systemPrompt,
-    messages: messages.map(m => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    })),
-  })
-
-  return result
-}
-
-// Non-streaming version for simpler cases
-export async function generateResponse(options: GenerateOptions): Promise<string> {
-  const { systemPrompt, messages } = options
-
-  const { text } = await generateText({
-    model: google('gemini-1.5-flash'),
-    system: systemPrompt,
-    messages: messages.map(m => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    })),
-  })
-
-  return text
-}
-```
+**Note:** This is already implemented in `@repo/llm` package (see `packages/llm/src/generate.ts`).
 
 **✅ Validation Checklist:**
 - [ ] Type check: `bun run turbo typecheck`
@@ -1482,11 +2053,14 @@ export async function generateResponse(options: GenerateOptions): Promise<string
 
 **Critical Code - Analytics Update:**
 ```typescript
-// apps/server/src/lib/analytics/update-analytics.ts
+// packages/analytics/src/update-analytics.ts
 
 // ** import lib
-import { redis } from '@/lib/upstash/redis'
-import { updateUserProfile, markTopicCovered } from '@/lib/user/profile'
+import { redis } from '@repo/storage'
+import { updateUserProfile, markTopicCovered } from './user-profile.js'
+
+// ** import utils
+import { logger } from '@repo/logs'
 
 interface AnalyticsData {
   userId: string
@@ -1505,7 +2079,7 @@ export async function updateAnalytics(data: AnalyticsData): Promise<void> {
   }
 
   // Update question count
-  const profile = await redis.get(`user:${userId}:profile`) || {}
+  const profile = await redis.get<{ questionsAnswered?: number }>(`user:${userId}:profile`) || {}
   await updateUserProfile(userId, {
     questionsAnswered: (profile.questionsAnswered || 0) + 1,
     lastInteraction: new Date().toISOString(),
@@ -1521,6 +2095,8 @@ export async function updateAnalytics(data: AnalyticsData): Promise<void> {
 
   // Trim history to last 100 interactions
   await redis.ltrim(`user:${userId}:interactions`, 0, 99)
+
+  logger.info('Analytics updated', { userId, topicsCount: topicsDiscussed.length })
 }
 ```
 
@@ -1548,18 +2124,28 @@ export async function updateAnalytics(data: AnalyticsData): Promise<void> {
 // apps/server/src/routes/v1/chat/completions.ts (complete)
 
 // ** import lib
-import { retrieveContext } from '@/lib/rag/retrieve-context'
-import { getUserProfile } from '@/lib/user/profile'
-import { buildSystemPrompt } from '@/lib/prompt/system-prompt'
-import { generateResponse } from '@/lib/llm/generate-response'
-import { updateAnalytics } from '@/lib/analytics/update-analytics'
+import { Hono } from 'hono'
+import { retrieveContext } from '@repo/rag'
+import { getUserProfile } from '@repo/analytics'
+import { buildSystemPrompt, generateResponse } from '@repo/llm'
+import { updateAnalytics } from '@repo/analytics'
+
+// ** import utils
+import { logger } from '@repo/logs'
+
+const chatRoute = new Hono()
 
 chatRoute.post('/completions', async (c) => {
-  // Auth check...
+  // Auth check
+  const authHeader = c.req.header('authorization')
+  if (authHeader !== `Bearer ${process.env.ELEVENLABS_AGENT_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
   const body = await c.req.json()
   const messages = body.messages
   const userId = body.user_id || 'default'
-  const userMessage = messages.filter(m => m.role === 'user').pop()?.content || ''
+  const userMessage = messages.filter((m: any) => m.role === 'user').pop()?.content || ''
 
   // 1. Retrieve relevant context
   const { chunks, sources } = await retrieveContext(userMessage, userId)
@@ -1585,8 +2171,8 @@ chatRoute.post('/completions', async (c) => {
     query: userMessage,
     response: responseText,
     retrievedChunks: chunks,
-    topicsDiscussed: [], // Extract from response
-  }).catch(console.error)
+    topicsDiscussed: [],
+  }).catch((err) => logger.error('Analytics update failed', err))
 
   // 6. Return OpenAI-compatible response
   return c.json({
@@ -1602,6 +2188,8 @@ chatRoute.post('/completions', async (c) => {
     usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
   })
 })
+
+export { chatRoute }
 ```
 
 **✅ Validation Checklist:**
@@ -1621,11 +2209,13 @@ chatRoute.post('/completions', async (c) => {
 
 **Description:** Configure TanStack Start app with required dependencies
 
+**Status:** ✅ COMPLETED (apps/web exists)
+
 **Subtasks:**
-- [ ] Initialize TanStack Start project
+- [x] Initialize TanStack Start project
 - [ ] Install React Flow for graph visualization
 - [ ] Install 11Labs Convai SDK
-- [ ] Set up Tailwind CSS
+- [x] Set up Tailwind CSS
 - [ ] Configure API client
 
 **Dependencies:**
@@ -1635,8 +2225,7 @@ chatRoute.post('/completions', async (c) => {
   "@tanstack/react-router": "latest",
   "@11labs/react": "latest",
   "@xyflow/react": "latest",
-  "tailwindcss": "latest",
-  "axios": "latest"
+  "tailwindcss": "latest"
 }
 ```
 
@@ -1649,13 +2238,20 @@ chatRoute.post('/completions', async (c) => {
 
 ## Task 3.2: File Upload Component
 
-**Description:** Create drag-and-drop file upload UI
+**Description:** Create drag-and-drop file upload UI with multimodal support
 
 **Subtasks:**
 - [ ] Create dropzone component
 - [ ] Show upload progress
-- [ ] Handle multiple file types
+- [ ] Handle multiple file types (PDF, images, documents)
 - [ ] Display uploaded files list
+- [ ] Show processing status
+
+**Supported Upload Types:**
+- PDF documents
+- Images (PNG, JPEG, WEBP, GIF, TIFF)
+- Office documents (DOCX, PPTX)
+- Text files (TXT, MD)
 
 **✅ Validation Checklist:**
 - [ ] Type check: `bun run turbo typecheck`
@@ -1691,9 +2287,7 @@ export function VoiceWidget({ agentId }: { agentId: string }) {
   })
 
   const handleStart = async () => {
-    await conversation.startSession({
-      // Custom user context if needed
-    })
+    await conversation.startSession({})
   }
 
   const handleStop = async () => {
@@ -1733,54 +2327,6 @@ export function VoiceWidget({ agentId }: { agentId: string }) {
 - [ ] Transform graph to React Flow format
 - [ ] Add zoom/pan controls
 - [ ] Highlight covered topics
-
-**Critical Code - Graph Visualization:**
-```typescript
-// apps/web/src/components/graph/KnowledgeGraph.tsx
-
-// ** import lib
-import { ReactFlow, Background, Controls } from '@xyflow/react'
-import '@xyflow/react/dist/style.css'
-
-// ** import types
-import type { KnowledgeGraph } from '@/types/graph'
-
-interface Props {
-  graph: KnowledgeGraph
-  coveredTopics: string[]
-}
-
-export function KnowledgeGraphView({ graph, coveredTopics }: Props) {
-  // Transform to React Flow format
-  const nodes = graph.nodes.map((node, idx) => ({
-    id: node.id,
-    position: { x: idx * 150, y: Math.random() * 300 },
-    data: { label: node.label },
-    style: {
-      backgroundColor: coveredTopics.includes(node.id) 
-        ? '#4ade80' // Green for covered
-        : '#f3f4f6', // Gray for uncovered
-    },
-  }))
-
-  const edges = graph.edges.map(edge => ({
-    id: `${edge.source}-${edge.target}`,
-    source: edge.source,
-    target: edge.target,
-    label: edge.relation,
-    animated: true,
-  }))
-
-  return (
-    <div style={{ width: '100%', height: '500px' }}>
-      <ReactFlow nodes={nodes} edges={edges} fitView>
-        <Background />
-        <Controls />
-      </ReactFlow>
-    </div>
-  )
-}
-```
 
 **✅ Validation Checklist:**
 - [ ] Type check: `bun run turbo typecheck`
@@ -1862,7 +2408,8 @@ export function KnowledgeGraphView({ graph, coveredTopics }: Props) {
 **Description:** Test complete flow from upload to voice conversation
 
 **Test Scenarios:**
-- [ ] Upload PDF → Verify vectors created
+- [ ] Upload PDF → Verify OCR with Gemini 2.0 Flash
+- [ ] Upload Image → Verify multimodal extraction
 - [ ] Ask question → Verify RAG retrieval
 - [ ] Interrupt mid-response → Verify resume works
 - [ ] Delete file → Verify cleanup
@@ -1883,14 +2430,14 @@ export function KnowledgeGraphView({ graph, coveredTopics }: Props) {
 
 ```typescript
 // ** import types
-import type { TypeName } from '@/types/module'
+import type { TypeName } from '@repo/shared'
 
 // ** import core packages
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 
-// ** import database
-import { db, table } from '@repo/db'
+// ** import storage
+import { redis, vectorIndex } from '@repo/storage'
 
 // ** import middleware
 import { authMiddleware } from '@/middleware/auth'
@@ -1904,24 +2451,18 @@ import { z } from 'zod'
 // ** import utils
 import { logger } from '@repo/logs'
 import { createGCSClient } from '@repo/gcs'
-
-// ** import apis
-import { apiFunction } from '@/api/module'
+import { extractTextWithGeminiOCR } from '@repo/ingest/ocr'
 
 // ** import constants
 import { CONSTANT_VALUE } from './constants'
-
-// ** import styles
-import '@/entrypoints/style.css'
 ```
 
 **Rules:**
 1. Always add 1 line space between different import sections
 2. Use exact comment format: `// ** import [category]` (all lowercase)
 3. Group related imports under the same comment section
-4. Order from abstract to concrete: types → core packages → database → middleware → schema → validation → utils → apis → constants → styles
-5. No additional descriptive text in comments
-6. Only include categories that are actually used in the file
+4. Order from abstract to concrete: types → core → storage → middleware → schema → validation → utils → constants
+5. Only include categories that are actually used in the file
 
 ---
 
@@ -1929,18 +2470,12 @@ import '@/entrypoints/style.css'
 
 1. **Run Validation Suite:**
    ```bash
-   # Type check
    bun run turbo typecheck
-
-   # Build check
    bun run turbo build
-
-   # Lint check
    bun run turbo lint
    ```
 
 2. **Mark Task Complete:**
-   - Return to this document
    - Check off completed subtasks
    - Check off main task checkbox
 
@@ -1952,32 +2487,32 @@ import '@/entrypoints/style.css'
 
 4. **Proceed to Next Task:**
    - Only after all three checks pass
-   - Only after TODO is marked complete
 
 ---
 
 # Quick Reference: Critical Code Snippets
+
+## Gemini OCR (Multimodal)
+```typescript
+import { extractTextWithGeminiOCR } from '@repo/ingest/ocr'
+
+const result = await extractTextWithGeminiOCR(fileUrl)
+// Works with: PDF, PNG, JPEG, WEBP, GIF, TIFF, DOCX, PPTX
+```
 
 ## Vector DB Injection
 ```typescript
 await vectorIndex.upsert([{
   id: 'chunk_id',
   vector: embeddingArray,
-  metadata: { content: 'text', fileId: 'file_123' }
+  metadata: { content: 'text', fileId: 'file_123', userId: 'user_1' }
 }])
 ```
 
 ## Embedding Generation
 ```typescript
-const model = genAI.getGenerativeModel({ model: 'embedding-001' })
-const result = await model.embedContent(text)
-return result.embedding.values
-```
-
-## Graph Merger (ID Normalization)
-```typescript
-const normalizedId = node.id.toLowerCase().replace(/\s+/g, '_')
-if (nodeMap.has(normalizedId)) { /* merge */ } else { /* add */ }
+import { generateEmbedding } from '@repo/llm'
+const embedding = await generateEmbedding(text)
 ```
 
 ## 11Labs Custom LLM Connection
@@ -1990,21 +2525,13 @@ if (nodeMap.has(normalizedId)) { /* merge */ } else { /* add */ }
 }
 ```
 
-## Memory Graph Storage (Redis)
-```typescript
-await redis.set(`user:${userId}:graph`, {
-  nodes: [...],
-  edges: [{ source, target, relation, sources: [fileId] }]
-})
-```
-
 ---
 
 # Summary
 
 | Phase | Focus | Tasks | Key Deliverables |
 |-------|-------|-------|------------------|
-| **I** | Ingestion | 1.1 - 1.10 | Upload, OCR, Chunk, Embed, Graph |
+| **I** | Ingestion | 1.1 - 1.10 | Upload, Gemini OCR, Chunk, Embed, Graph |
 | **II** | Runtime | 2.1 - 2.7 | Chat API, RAG, Streaming, Analytics |
 | **III** | Frontend | 3.1 - 3.8 | Voice Widget, Graph View, Dashboard |
 
@@ -2017,16 +2544,27 @@ await redis.set(`user:${userId}:graph`, {
 - **Backend:** Hono.js + TypeScript + Bun
 - **Storage:** Upstash Vector + Redis
 - **Files:** Google Cloud Storage (@repo/gcs package)
-- **LLM:** Gemini 1.5 Flash (LLM & Embeddings)
-- **OCR:** Mistral OCR (with retry logic & confidence scoring)
+- **LLM & OCR:** Gemini 2.0 Flash (unified for LLM, OCR, and Embeddings)
 - **Voice:** 11Labs Conversational AI
 - **Logging:** @repo/logs package
-- **TypeScript Config:** @repo/typescript-config package
 
-**Key Architectural Patterns:**
-- Reusable package architecture (@repo/* packages)
-- Strict import organization guidelines
-- TypeScript strict mode across all packages
-- Zod schema validation for API endpoints
-- Environment-based configuration
-- Centralized logging and error handling
+**Key Changes from Original Plan:**
+- ✅ Replaced Mistral OCR with Gemini 2.0 Flash multimodal OCR
+- ✅ Added full multimodal support (PDF, images, documents)
+- ✅ Unified all AI operations under Gemini 2.0 Flash
+- ✅ Updated Pre-Development Checklist with detailed steps
+- ✅ Removed Mistral dependency
+
+**Multimodal Input Support:**
+| Format | Support | Notes |
+|--------|---------|-------|
+| PDF | ✅ | Native Gemini support |
+| PNG | ✅ | Image OCR |
+| JPEG | ✅ | Image OCR |
+| WEBP | ✅ | Image OCR |
+| GIF | ✅ | Image OCR |
+| TIFF | ✅ | Image OCR |
+| DOCX | ✅ | Document extraction |
+| PPTX | ✅ | Presentation extraction |
+| TXT | ✅ | Direct text |
+| MD | ✅ | Markdown passthrough |

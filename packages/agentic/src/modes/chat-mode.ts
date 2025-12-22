@@ -3,7 +3,12 @@
 
 // ** import types
 import type { ChatMode } from "@repo/shared";
-import { MODE_PROMPTS } from "@repo/shared";
+import {
+  getChatModeSystemPrompt,
+  getChatModeSystemPromptWithContext,
+} from "../prompts";
+
+export { getChatModeSystemPrompt, getChatModeSystemPromptWithContext };
 
 // ** import utils
 import { logger } from "@repo/logs";
@@ -45,39 +50,9 @@ export interface ChatModeResult {
 }
 
 /**
- * Get system prompt for chat mode
- */
-export function getChatModeSystemPrompt(): string {
-  return MODE_PROMPTS.chat;
-}
-
-/**
- * Get extended system prompt with context for chat mode
- */
-export function getChatModeSystemPromptWithContext(
-  basePrompt: string,
-  userLevel?: string
-): string {
-  return `${basePrompt}
-
-## Mode: CHAT MODE (Off-Record)
-This conversation is NOT being tracked for learning purposes.
-The user wants to explore freely without affecting their learning profile.
-
-Guidelines:
-- Answer questions directly and helpfully
-- Don't mention learning progress or suggest saving anything
-- Be conversational and relaxed
-- No need to structure responses for learning optimization
-- Feel free to discuss tangential topics${userLevel ? `\n\nNote: User's general level is ${userLevel}, but this doesn't affect how you respond in chat mode.` : ""}`;
-}
-
-/**
  * Initialize chat mode processing
  */
-export function initializeChatMode(
-  context: ChatModeContext
-): ChatModeResult {
+export function initializeChatMode(context: ChatModeContext): ChatModeResult {
   logger.info("Initializing chat mode (off-record)", {
     userId: context.userId,
     offRecord: context.config.offRecord,
@@ -98,9 +73,12 @@ export function initializeChatMode(
  */
 export function verifyChatModeOffRecord(context: ChatModeContext): boolean {
   if (!context.config.offRecord) {
-    logger.warn("Chat mode invoked but offRecord is false - this is unexpected", {
-      userId: context.userId,
-    });
+    logger.warn(
+      "Chat mode invoked but offRecord is false - this is unexpected",
+      {
+        userId: context.userId,
+      },
+    );
     return false;
   }
   return true;
@@ -131,7 +109,7 @@ export function isToolAllowedInChatMode(toolName: string): boolean {
  * Filter tools for chat mode - removes learning-related tools
  */
 export function filterToolsForChatMode<T extends Record<string, unknown>>(
-  tools: T
+  tools: T,
 ): T {
   const disabledTools = getDisabledToolsForChatMode();
   const filteredTools = { ...tools };
