@@ -117,11 +117,6 @@ export function ActionButtons({
     null,
   );
 
-  const config = normalizeResponseActions(actions);
-  if (!config || config.items.length === 0) return null;
-
-  const { items, align, confirmTimeout } = config;
-
   // Clear timers on unmount
   React.useEffect(() => {
     return () => {
@@ -129,6 +124,11 @@ export function ActionButtons({
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
   }, []);
+
+  const config = normalizeResponseActions(actions);
+  if (!config || config.items.length === 0) return null;
+
+  const { items, align, confirmTimeout } = config;
 
   const handleClick = async (action: Action) => {
     // If already confirming this action, execute it

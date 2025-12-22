@@ -1,24 +1,26 @@
 "use client"
 
 import {
+  
+  
+  
+  
   createContext,
   useContext,
-  useMemo,
-  type ComponentPropsWithoutRef,
-  type ComponentPropsWithRef,
-  type HTMLAttributes,
-  type ReactNode,
+  useMemo
 } from "react"
-import type { CharacterAlignmentResponseModel } from "@elevenlabs/elevenlabs-js/api/types/CharacterAlignmentResponseModel"
 import { Pause, Play } from "lucide-react"
+import type {ComponentPropsWithRef, ComponentPropsWithoutRef, HTMLAttributes, ReactNode} from "react";
+import type { CharacterAlignmentResponseModel } from "@elevenlabs/elevenlabs-js/api/types/CharacterAlignmentResponseModel"
 
+import type {SegmentComposer, TranscriptSegment, TranscriptWord as TranscriptWordType, UseTranscriptViewerResult} from "@/hooks/use-transcript-viewer";
 import { cn } from "@/lib/utils"
 import {
-  useTranscriptViewer,
-  type SegmentComposer,
-  type TranscriptSegment,
-  type TranscriptWord as TranscriptWordType,
-  type UseTranscriptViewerResult,
+  
+  
+  
+  
+  useTranscriptViewer
 } from "@/hooks/use-transcript-viewer"
 import { Button } from "@/components/ui/button"
 import {
@@ -329,7 +331,7 @@ function TranscriptViewerPlayPauseButton({
 
   const content =
     typeof children === "function"
-      ? (children as RenderChildren)({ isPlaying })
+      ? (children)({ isPlaying })
       : children
 
   return (

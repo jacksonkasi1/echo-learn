@@ -60,7 +60,6 @@ export interface OptionListProps {
  * with optional confirmation flow and receipt state
  */
 export function OptionList({
-  id: _id,
   title,
   description,
   options,

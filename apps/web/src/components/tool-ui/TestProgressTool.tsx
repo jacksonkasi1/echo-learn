@@ -3,9 +3,10 @@
 import { makeAssistantToolUI } from '@assistant-ui/react'
 import {
   TestProgress,
-  isTestProgressArgsComplete,
-  type TestProgressToolArgs,
+  
+  isTestProgressArgsComplete
 } from '@repo/tool-ui'
+import type {TestProgressToolArgs} from '@repo/tool-ui';
 
 /**
  * Test Progress Tool UI Registration

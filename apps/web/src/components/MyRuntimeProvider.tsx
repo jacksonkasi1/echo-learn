@@ -124,7 +124,7 @@ function createModelAdapter(
         // Build message content
         if (m.role === 'assistant' && toolCalls.length > 0) {
           // Assistant message with tool calls - include both text and tool call info
-          const contentParts: string[] = []
+          const contentParts: Array<string> = []
           if (textParts.length > 0) {
             contentParts.push(textParts.join('\n'))
           }

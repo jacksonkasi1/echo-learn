@@ -1,8 +1,8 @@
 // ** import types
+import { Suspense, lazy } from 'react'
 import type { ComponentProps } from 'react'
 
 // ** import core packages
-import { lazy, Suspense } from 'react'
 
 const LazyOrb = lazy(() => import('./orb').then((m) => ({ default: m.Orb })))
 

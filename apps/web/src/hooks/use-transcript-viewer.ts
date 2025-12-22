@@ -1,14 +1,8 @@
-"use client"
+'use client'
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type RefObject,
-} from "react"
-import type { CharacterAlignmentResponseModel } from "@elevenlabs/elevenlabs-js/api/types/CharacterAlignmentResponseModel"
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { RefObject } from 'react'
+import type { CharacterAlignmentResponseModel } from '@elevenlabs/elevenlabs-js/api/types/CharacterAlignmentResponseModel'
 
 type ComposeSegmentsOptions = {
   hideAudioTags?: boolean
@@ -20,30 +14,30 @@ type BaseSegment = {
 }
 
 type TranscriptWord = BaseSegment & {
-  kind: "word"
+  kind: 'word'
   wordIndex: number
   startTime: number
   endTime: number
 }
 
 type GapSegment = BaseSegment & {
-  kind: "gap"
+  kind: 'gap'
 }
 
 type TranscriptSegment = TranscriptWord | GapSegment
 
 type ComposeSegmentsResult = {
-  segments: TranscriptSegment[]
-  words: TranscriptWord[]
+  segments: Array<TranscriptSegment>
+  words: Array<TranscriptWord>
 }
 
 type SegmentComposer = (
-  alignment: CharacterAlignmentResponseModel
+  alignment: CharacterAlignmentResponseModel,
 ) => ComposeSegmentsResult
 
 function composeSegments(
   alignment: CharacterAlignmentResponseModel,
-  options: ComposeSegmentsOptions = {}
+  options: ComposeSegmentsOptions = {},
 ): ComposeSegmentsResult {
   const {
     characters,
@@ -51,11 +45,11 @@ function composeSegments(
     characterEndTimesSeconds: ends,
   } = alignment
 
-  const segments: TranscriptSegment[] = []
-  const words: TranscriptWord[] = []
+  const segments: Array<TranscriptSegment> = []
+  const words: Array<TranscriptWord> = []
 
-  let wordBuffer = ""
-  let whitespaceBuffer = ""
+  let wordBuffer = ''
+  let whitespaceBuffer = ''
   let wordStart = 0
   let wordEnd = 0
   let segmentIndex = 0
@@ -67,17 +61,17 @@ function composeSegments(
   const flushWhitespace = () => {
     if (!whitespaceBuffer) return
     segments.push({
-      kind: "gap",
+      kind: 'gap',
       segmentIndex: segmentIndex++,
       text: whitespaceBuffer,
     })
-    whitespaceBuffer = ""
+    whitespaceBuffer = ''
   }
 
   const flushWord = () => {
     if (!wordBuffer) return
     const word: TranscriptWord = {
-      kind: "word",
+      kind: 'word',
       segmentIndex: segmentIndex++,
       wordIndex: wordIndex++,
       text: wordBuffer,
@@ -86,7 +80,7 @@ function composeSegments(
     }
     segments.push(word)
     words.push(word)
-    wordBuffer = ""
+    wordBuffer = ''
   }
 
   for (let i = 0; i < characters.length; i++) {
@@ -95,15 +89,15 @@ function composeSegments(
     const end = ends[i] ?? start
 
     if (hideAudioTags) {
-      if (char === "[") {
+      if (char === '[') {
         flushWord()
-        whitespaceBuffer = ""
+        whitespaceBuffer = ''
         insideAudioTag = true
         continue
       }
 
       if (insideAudioTag) {
-        if (char === "]") insideAudioTag = false
+        if (char === ']') insideAudioTag = false
         continue
       }
     }
@@ -146,10 +140,10 @@ type UseTranscriptViewerProps = {
 }
 
 type UseTranscriptViewerResult = {
-  segments: TranscriptSegment[]
-  words: TranscriptWord[]
-  spokenSegments: TranscriptSegment[]
-  unspokenSegments: TranscriptSegment[]
+  segments: Array<TranscriptSegment>
+  words: Array<TranscriptWord>
+  spokenSegments: Array<TranscriptSegment>
+  unspokenSegments: Array<TranscriptSegment>
   currentWord: TranscriptWord | null
   currentSegmentIndex: number
   currentWordIndex: number
@@ -195,7 +189,7 @@ function useTranscriptViewer({
 
   // Best-effort duration guess from alignment data while metadata loads
   const guessedDuration = useMemo(() => {
-    const ends = alignment?.characterEndTimesSeconds
+    const ends = alignment.characterEndTimesSeconds
     if (Array.isArray(ends) && ends.length) {
       const last = ends[ends.length - 1]
       return Number.isFinite(last) ? last : 0
@@ -208,7 +202,7 @@ function useTranscriptViewer({
   }, [alignment, words])
 
   const [currentWordIndex, setCurrentWordIndex] = useState<number>(() =>
-    words.length ? 0 : -1
+    words.length ? 0 : -1,
   )
 
   useEffect(() => {
@@ -239,11 +233,11 @@ function useTranscriptViewer({
       }
       return answer
     },
-    [words]
+    [words],
   )
 
   const handleTimeUpdate = useCallback(
-    (currentTime: number) => {
+    (time: number) => {
       if (!words.length) return
 
       const currentWord =
@@ -252,24 +246,18 @@ function useTranscriptViewer({
           : undefined
 
       if (!currentWord) {
-        const found = findWordIndex(currentTime)
+        const found = findWordIndex(time)
         if (found !== -1) setCurrentWordIndex(found)
         return
       }
 
       let next = currentWordIndex
-      if (
-        currentTime >= currentWord.endTime &&
-        currentWordIndex + 1 < words.length
-      ) {
-        while (
-          next + 1 < words.length &&
-          currentTime >= words[next + 1].startTime
-        ) {
+      if (time >= currentWord.endTime && currentWordIndex + 1 < words.length) {
+        while (next + 1 < words.length && time >= words[next + 1].startTime) {
           next++
         }
         // If we're inside the next word's window, pick it.
-        if (currentTime < words[next].endTime) {
+        if (time < words[next].endTime) {
           setCurrentWordIndex(next)
           return
         }
@@ -279,18 +267,18 @@ function useTranscriptViewer({
         return
       }
 
-      if (currentTime < currentWord.startTime) {
-        const found = findWordIndex(currentTime)
+      if (time < currentWord.startTime) {
+        const found = findWordIndex(time)
         if (found !== -1) setCurrentWordIndex(found)
         return
       }
 
-      const found = findWordIndex(currentTime)
+      const found = findWordIndex(time)
       if (found !== -1 && found !== currentWordIndex) {
         setCurrentWordIndex(found)
       }
     },
-    [findWordIndex, currentWordIndex, words]
+    [findWordIndex, currentWordIndex, words],
   )
 
   useEffect(() => {
@@ -361,7 +349,7 @@ function useTranscriptViewer({
       stopRaf()
       onEnded?.()
     }
-    const handleTimeUpdate = () => {
+    const onAudioTimeUpdate = () => {
       syncTime()
       onTimeUpdate?.(audio.currentTime)
     }
@@ -383,23 +371,23 @@ function useTranscriptViewer({
       stopRaf()
     }
 
-    audio.addEventListener("play", handlePlay)
-    audio.addEventListener("pause", handlePause)
-    audio.addEventListener("ended", handleEnded)
-    audio.addEventListener("timeupdate", handleTimeUpdate)
-    audio.addEventListener("seeked", handleSeeked)
-    audio.addEventListener("durationchange", handleDuration)
-    audio.addEventListener("loadedmetadata", handleDuration)
+    audio.addEventListener('play', handlePlay)
+    audio.addEventListener('pause', handlePause)
+    audio.addEventListener('ended', handleEnded)
+    audio.addEventListener('timeupdate', onAudioTimeUpdate)
+    audio.addEventListener('seeked', handleSeeked)
+    audio.addEventListener('durationchange', handleDuration)
+    audio.addEventListener('loadedmetadata', handleDuration)
 
     return () => {
       stopRaf()
-      audio.removeEventListener("play", handlePlay)
-      audio.removeEventListener("pause", handlePause)
-      audio.removeEventListener("ended", handleEnded)
-      audio.removeEventListener("timeupdate", handleTimeUpdate)
-      audio.removeEventListener("seeked", handleSeeked)
-      audio.removeEventListener("durationchange", handleDuration)
-      audio.removeEventListener("loadedmetadata", handleDuration)
+      audio.removeEventListener('play', handlePlay)
+      audio.removeEventListener('pause', handlePause)
+      audio.removeEventListener('ended', handleEnded)
+      audio.removeEventListener('timeupdate', onAudioTimeUpdate)
+      audio.removeEventListener('seeked', handleSeeked)
+      audio.removeEventListener('durationchange', handleDuration)
+      audio.removeEventListener('loadedmetadata', handleDuration)
     }
   }, [
     audioRef,
@@ -422,16 +410,18 @@ function useTranscriptViewer({
       node.currentTime = time
       handleTimeUpdateRef.current(time)
     },
-    [audioRef]
+    [audioRef],
   )
 
   const seekToWord = useCallback(
     (word: number | TranscriptWord) => {
-      const target = typeof word === "number" ? words[word] : word
+      const target = (typeof word === 'number' ? words[word] : word) as
+        | TranscriptWord
+        | undefined
       if (!target) return
       seekToTime(target.startTime)
     },
-    [seekToTime, words]
+    [seekToTime, words],
   )
 
   const play = useCallback(() => {
@@ -444,7 +434,7 @@ function useTranscriptViewer({
 
   const pause = useCallback(() => {
     const audio = audioRef.current
-    if (audio && !audio.paused) {
+    if (audio) {
       audio.pause()
     }
   }, [audioRef])

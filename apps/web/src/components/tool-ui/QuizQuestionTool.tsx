@@ -3,10 +3,11 @@
 import { useState } from 'react'
 import { makeAssistantToolUI, useThreadRuntime } from '@assistant-ui/react'
 import {
+  
   QuizQuestion,
-  isQuizQuestionArgsComplete,
-  type OptionListSelection,
+  isQuizQuestionArgsComplete
 } from '@repo/tool-ui'
+import type {OptionListSelection} from '@repo/tool-ui';
 
 /**
  * Quiz Question Tool UI Registration

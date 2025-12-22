@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { ChevronDown, GraduationCap, MessageSquare, ClipboardList } from "lucide-react";
-import { useLearningContext, type ChatMode } from "./LearningContext";
+import { ChevronDown, ClipboardList, GraduationCap, MessageSquare } from "lucide-react";
+import {  useLearningContext } from "./LearningContext";
+import type {ChatMode} from "./LearningContext";
 import { cn } from "@/lib/utils";
 
 const MODES: Record<ChatMode, { label: string; icon: React.ReactNode; description: string }> = {
@@ -59,7 +60,7 @@ export function ModeSelector() {
             aria-labelledby="mode-menu-button"
           >
             <div className="p-1">
-              {(Object.keys(MODES) as ChatMode[]).map((modeKey) => {
+              {(Object.keys(MODES) as Array<ChatMode>).map((modeKey) => {
                 const modeInfo = MODES[modeKey];
                 const isSelected = mode === modeKey;
 

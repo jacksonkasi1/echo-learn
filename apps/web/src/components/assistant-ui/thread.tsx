@@ -25,12 +25,12 @@ import {
 } from 'lucide-react'
 import type { FC } from 'react'
 
+import type { ChatMode } from '@/components/learning/LearningContext'
 import { FollowUpSuggestions } from '@/components/assistant-ui/followup-suggestions'
 
 import { MarkdownText } from '@/components/assistant-ui/markdown-text'
 import { ToolFallback } from '@/components/assistant-ui/tool-fallback'
 import { TooltipIconButton } from '@/components/assistant-ui/tooltip-icon-button'
-import type { ChatMode } from '@/components/learning/LearningContext'
 import { useLearningContext } from '@/components/learning/LearningContext'
 import { Button } from '@/components/ui/button'
 import {

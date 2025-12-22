@@ -7,9 +7,9 @@ import {
   Target,
   TrendingUp,
 } from 'lucide-react'
+import type { LearningAnalytics } from '@/api'
 import { cn } from '@/lib/utils'
 import { learningApi } from '@/api'
-import type { LearningAnalytics } from '@/api'
 
 export function Dashboard({ userId }: { userId: string }) {
   const [data, setData] = useState<LearningAnalytics | null>(null)
@@ -19,8 +19,8 @@ export function Dashboard({ userId }: { userId: string }) {
   useEffect(() => {
     async function fetchAnalytics() {
       try {
-        const data = await learningApi.getAnalytics(userId)
-        setData(data)
+        const analyticsData = await learningApi.getAnalytics(userId)
+        setData(analyticsData)
         setError(null)
       } catch (err) {
         console.error('Failed to fetch analytics:', err)

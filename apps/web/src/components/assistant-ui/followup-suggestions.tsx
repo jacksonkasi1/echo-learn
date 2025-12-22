@@ -1,5 +1,5 @@
 import { ThreadPrimitive } from '@assistant-ui/react'
-import { Lightbulb, MessageSquare, ClipboardList } from 'lucide-react'
+import { ClipboardList, Lightbulb, MessageSquare } from 'lucide-react'
 import type { FC } from 'react'
 
 import { useLearningContext } from '@/components/learning/LearningContext'

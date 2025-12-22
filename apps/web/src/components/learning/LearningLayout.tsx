@@ -1,8 +1,8 @@
 import { Link } from '@tanstack/react-router'
 import { AudioLines, BookOpen, Brain, MessageSquare } from 'lucide-react'
+import { LearningProvider } from './LearningContext'
 import type { ReactNode } from 'react'
 
-import { LearningProvider } from './LearningContext'
 import { ModeToggle } from '@/components/mode-toggle'
 import { Button } from '@/components/ui/button'
 

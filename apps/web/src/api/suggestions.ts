@@ -22,7 +22,7 @@ export interface Suggestion {
 }
 
 export interface InitialSuggestionsResponse {
-  suggestions: Suggestion[]
+  suggestions: Array<Suggestion>
   hasContent: boolean
   message?: string
   processingTimeMs: number
@@ -33,7 +33,7 @@ export interface InitialSuggestionsResponse {
 }
 
 export interface FollowUpSuggestionsResponse {
-  suggestions: Suggestion[]
+  suggestions: Array<Suggestion>
   processingTimeMs: number
   /** Whether smart LLM-powered suggestions were used */
   smart?: boolean
