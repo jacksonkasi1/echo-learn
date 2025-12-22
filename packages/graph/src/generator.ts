@@ -52,7 +52,7 @@ const graphEdgeSchema = z.object({
   relation: z
     .string()
     .describe(
-      'Relationship type: "is a", "includes", "causes", "requires", "relates to", etc.'
+      'Relationship type: "is a", "includes", "causes", "requires", "relates to", etc.',
     ),
 });
 
@@ -72,7 +72,7 @@ type GeneratedGraph = z.infer<typeof graphSchema>;
  */
 export async function generateGraphFromText(
   text: string,
-  fileId: string
+  fileId: string,
 ): Promise<KnowledgeGraph> {
   try {
     logger.info("Generating knowledge graph from text", {
@@ -119,7 +119,7 @@ export async function generateGraphFromText(
         type: node.type as GraphNodeType,
         description: node.description,
         fileIds: [fileId],
-      })
+      }),
     );
 
     // Create a set of valid node IDs for validation
@@ -165,41 +165,85 @@ export async function generateGraphFromText(
 }
 
 /**
+ * Process chunks in parallel with concurrency limit
+ */
+async function processWithConcurrency<T, R>(
+  items: T[],
+  fn: (item: T, index: number) => Promise<R>,
+  concurrency: number,
+): Promise<R[]> {
+  const results: R[] = [];
+  const executing: Promise<void>[] = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]!;
+    const promise = fn(item, i).then((result) => {
+      results[i] = result;
+    });
+
+    executing.push(promise as Promise<void>);
+
+    if (executing.length >= concurrency) {
+      await Promise.race(executing);
+      // Remove completed promises
+      for (let j = executing.length - 1; j >= 0; j--) {
+        const p = executing[j];
+        // Check if promise is settled by racing with an immediate resolve
+        const settled = await Promise.race([
+          p!.then(() => true).catch(() => true),
+          Promise.resolve(false),
+        ]);
+        if (settled) {
+          executing.splice(j, 1);
+        }
+      }
+    }
+  }
+
+  await Promise.all(executing);
+  return results;
+}
+
+/**
  * Generate a knowledge graph from multiple text chunks
  * Combines graphs from each chunk into a single graph
+ * Uses parallel processing with concurrency control for speed
  */
 export async function generateGraphFromChunks(
   chunks: Array<{ content: string; id: string }>,
-  fileId: string
+  fileId: string,
+  options: { concurrency?: number } = {},
 ): Promise<KnowledgeGraph> {
+  const { concurrency = 5 } = options; // Process 5 chunks in parallel by default
+
   logger.info("Generating knowledge graph from chunks", {
     fileId,
     chunkCount: chunks.length,
+    concurrency,
   });
 
   const allNodes: GraphNode[] = [];
   const allEdges: GraphEdge[] = [];
 
-  // Process chunks in sequence to avoid rate limits
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i]!;
-
-    try {
-      logger.info(`Processing chunk ${i + 1}/${chunks.length}`);
-
-      const chunkGraph = await generateGraphFromText(chunk.content, fileId);
-
-      allNodes.push(...chunkGraph.nodes);
-      allEdges.push(...chunkGraph.edges);
-
-      // Small delay between chunks to respect rate limits
-      if (i < chunks.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
+  // Process chunks in parallel with concurrency limit
+  const chunkGraphs = await processWithConcurrency(
+    chunks,
+    async (chunk, i) => {
+      try {
+        logger.info(`Processing chunk ${i + 1}/${chunks.length}`);
+        return await generateGraphFromText(chunk.content, fileId);
+      } catch (error) {
+        logger.error(`Failed to process chunk ${i + 1}`, error);
+        return { nodes: [], edges: [] } as KnowledgeGraph;
       }
-    } catch (error) {
-      logger.error(`Failed to process chunk ${i + 1}`, error);
-      // Continue with other chunks
-    }
+    },
+    concurrency,
+  );
+
+  // Collect all nodes and edges from parallel results
+  for (const chunkGraph of chunkGraphs) {
+    allNodes.push(...chunkGraph.nodes);
+    allEdges.push(...chunkGraph.edges);
   }
 
   // Deduplicate nodes by ID, merging fileIds

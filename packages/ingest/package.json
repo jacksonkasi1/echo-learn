@@ -25,6 +25,7 @@
   "dependencies": {
     "@repo/shared": "workspace:*",
     "@repo/logs": "workspace:*",
+    "@google/generative-ai": "^0.21.0",
     "@mistralai/mistralai": "^1.5.0"
   },
   "devDependencies": {

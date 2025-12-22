@@ -259,6 +259,7 @@
       "name": "@repo/ingest",
       "version": "1.0.0",
       "dependencies": {
+        "@google/generative-ai": "^0.21.0",
         "@mistralai/mistralai": "^1.5.0",
         "@repo/logs": "workspace:*",
         "@repo/shared": "workspace:*",

@@ -456,3 +456,18 @@ export async function deleteCache(key: string): Promise<void> {
     logger.error(`Failed to delete cache: ${key}`, error);
   }
 }
+
+/**
+ * Flush all data from Redis (DANGER: USE ONLY IN DEV)
+ */
+export async function flushRedis(): Promise<void> {
+  try {
+    await redis.flushdb();
+    logger.info("Flushed Redis database");
+    // Clear in-memory cache as well
+    profileCache.clear();
+  } catch (error) {
+    logger.error("Failed to flush Redis", error);
+    throw error;
+  }
+}

@@ -11,6 +11,7 @@ import { chatRoute } from "@/routes/v1/chat/completions";
 import { usersRoute } from "@/routes/users";
 import { elevenlabsRoute } from "@/routes/elevenlabs";
 import { learningRoute } from "@/routes/learning";
+import { devRoute } from "@/routes/dev";
 
 // ** import agentic
 import { initializeAgenticRouter } from "@repo/agentic";
@@ -126,6 +127,10 @@ app.route("/api/users", usersRoute);
 // GET /api/learning/due-reviews - Get items due for review
 // GET /api/learning/recommendations - Get learning recommendations
 app.route("/api/learning", learningRoute);
+
+// Dev routes (development only)
+// GET /api/dev/flush-redis - Wipe Redis database
+app.route("/api/dev", devRoute);
 
 // ===========================================
 // Error Handling
