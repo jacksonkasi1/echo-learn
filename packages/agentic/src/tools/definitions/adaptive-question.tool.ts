@@ -17,6 +17,7 @@ import {
   getConceptsDueForReview,
   getEffectiveMastery,
   checkPrerequisites,
+  searchConceptsByKeywords,
 } from "@repo/storage";
 
 // ** import session management
@@ -26,6 +27,9 @@ import {
   addQuestionToSession,
   generateQuestionId,
 } from "@repo/storage";
+
+// ** import RAG for fallback
+import { retrieveContext, formatContextForPrompt } from "@repo/rag";
 
 // ** import utils
 import { logger } from "@repo/logs";
@@ -38,7 +42,9 @@ const adaptiveQuestionInputSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Specific topic/concept to generate a question about. If not provided, auto-selects based on user's learning state.",
+      "IMPORTANT: The specific topic/concept the user wants to be quizzed on. " +
+        "Extract this from the user's message (e.g., 'Quiz me on Patient Lens AI' → topic='Patient Lens AI'). " +
+        "If the user doesn't specify a topic, leave empty to auto-select based on learning state.",
     ),
   difficulty: z
     .enum(["easy", "medium", "hard", "auto"])
@@ -72,6 +78,7 @@ interface QuestionCandidate {
   isDueForReview: boolean;
   priority: number;
   reason: string;
+  ragContent?: string; // RAG fallback content when knowledge graph is empty
 }
 
 /**
@@ -82,6 +89,7 @@ export interface AdaptiveQuestionOutput {
   question: GeneratedQuestion | null;
   selectionReason: string;
   alternativeConcepts?: string[];
+  questionId?: string;
   message: string;
 }
 
@@ -163,6 +171,7 @@ function calculatePriority(
 
 /**
  * Select the best concept for questioning
+ * Now includes RAG fallback when knowledge graph is empty
  */
 async function selectConcept(
   userId: string,
@@ -173,18 +182,216 @@ async function selectConcept(
 
   // If specific topic requested, try to use it
   if (requestedTopic) {
-    const mastery = await getEffectiveMastery(userId, requestedTopic);
-    if (mastery) {
+    // First: Try exact match with conceptId/label
+    const exactMastery = await getEffectiveMastery(userId, requestedTopic);
+    if (exactMastery) {
+      // Also fetch RAG content so questions are based on actual materials
+      let ragContent: string | undefined;
+      try {
+        // Use a broader search query to improve results
+        const searchQuery = `${exactMastery.conceptLabel} features capabilities how it works`;
+        logger.info("Fetching RAG content for exact match concept", {
+          userId,
+          conceptLabel: exactMastery.conceptLabel,
+          searchQuery,
+        });
+        const ragContext = await retrieveContext(searchQuery, userId, {
+          topK: 15,
+          minScore: 0.01, // Very low threshold to catch any relevant content
+          useContextBudget: true,
+        });
+
+        logger.info("RAG search results for exact match", {
+          userId,
+          conceptLabel: exactMastery.conceptLabel,
+          chunksFound: ragContext.chunks.length,
+          sourcesFound: ragContext.sources.length,
+        });
+
+        if (ragContext.chunks.length > 0) {
+          ragContent = formatContextForPrompt(ragContext.chunks, {
+            maxLength: 2000,
+          });
+          logger.info("RAG content formatted for exact match concept", {
+            userId,
+            conceptLabel: exactMastery.conceptLabel,
+            chunksUsed: ragContext.chunks.length,
+            contentLength: ragContent.length,
+          });
+        } else {
+          logger.warn("No RAG content found for exact match concept", {
+            userId,
+            conceptLabel: exactMastery.conceptLabel,
+            searchQuery,
+          });
+        }
+      } catch (error) {
+        logger.warn("Failed to fetch RAG content for exact match", {
+          userId,
+          conceptLabel: exactMastery.conceptLabel,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+
       return {
-        conceptId: mastery.conceptId,
-        conceptLabel: mastery.conceptLabel,
-        mastery: mastery.masteryScore,
-        effectiveMastery: mastery.effectiveMastery,
-        isDueForReview: mastery.isDueForReview,
+        conceptId: exactMastery.conceptId,
+        conceptLabel: exactMastery.conceptLabel,
+        mastery: exactMastery.masteryScore,
+        effectiveMastery: exactMastery.effectiveMastery,
+        isDueForReview: exactMastery.isDueForReview,
         priority: 1.0,
-        reason: "User requested topic",
+        reason: "User requested topic (exact match)",
+        ragContent,
       };
     }
+
+    // Second: Try fuzzy keyword search in knowledge graph
+    logger.info(
+      "Exact match not found, trying fuzzy search in knowledge graph",
+      {
+        userId,
+        requestedTopic,
+      },
+    );
+
+    const fuzzyMatches = await searchConceptsByKeywords(
+      userId,
+      requestedTopic,
+      3,
+    );
+    if (fuzzyMatches.length > 0) {
+      const bestMatch = fuzzyMatches[0];
+      logger.info("Fuzzy match found in knowledge graph", {
+        userId,
+        requestedTopic,
+        matchedConcept: bestMatch?.conceptLabel,
+        totalMatches: fuzzyMatches.length,
+      });
+
+      // Also fetch RAG content so questions are based on actual materials
+      let ragContent: string | undefined;
+      try {
+        // Use a broader search query to improve results
+        const searchQuery = `${bestMatch!.conceptLabel} features capabilities how it works`;
+        logger.info("Fetching RAG content for fuzzy match concept", {
+          userId,
+          conceptLabel: bestMatch!.conceptLabel,
+          searchQuery,
+        });
+        const ragContext = await retrieveContext(searchQuery, userId, {
+          topK: 15,
+          minScore: 0.01, // Very low threshold to catch any relevant content
+          useContextBudget: true,
+        });
+
+        logger.info("RAG search results for fuzzy match", {
+          userId,
+          conceptLabel: bestMatch!.conceptLabel,
+          chunksFound: ragContext.chunks.length,
+          sourcesFound: ragContext.sources.length,
+        });
+
+        if (ragContext.chunks.length > 0) {
+          ragContent = formatContextForPrompt(ragContext.chunks, {
+            maxLength: 2000,
+          });
+          logger.info("RAG content formatted for fuzzy match concept", {
+            userId,
+            conceptLabel: bestMatch!.conceptLabel,
+            chunksUsed: ragContext.chunks.length,
+            contentLength: ragContent.length,
+          });
+        } else {
+          logger.warn("No RAG content found for fuzzy match concept", {
+            userId,
+            conceptLabel: bestMatch!.conceptLabel,
+            searchQuery,
+          });
+        }
+      } catch (error) {
+        logger.warn("Failed to fetch RAG content for concept", {
+          userId,
+          conceptLabel: bestMatch!.conceptLabel,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+
+      return {
+        conceptId: bestMatch!.conceptId,
+        conceptLabel: bestMatch!.conceptLabel,
+        mastery: bestMatch!.masteryScore,
+        effectiveMastery: bestMatch!.effectiveMastery,
+        isDueForReview: bestMatch!.isDueForReview,
+        priority: 1.0,
+        reason: `User requested topic (matched: "${bestMatch!.conceptLabel}")`,
+        ragContent,
+      };
+    }
+
+    // Third: RAG FALLBACK - If topic not in knowledge graph, search vector store
+    logger.info("Topic not found in knowledge graph, trying RAG fallback", {
+      userId,
+      requestedTopic,
+    });
+
+    try {
+      // Use broader search query and very low threshold to catch any relevant content
+      const searchQuery = `${requestedTopic} features capabilities how it works`;
+      const ragContext = await retrieveContext(searchQuery, userId, {
+        topK: 15,
+        minScore: 0.01, // Very low threshold - we want any potentially relevant content
+        useContextBudget: true,
+      });
+
+      if (ragContext.chunks.length > 0) {
+        const formattedContent = formatContextForPrompt(ragContext.chunks, {
+          maxLength: 2000,
+        });
+
+        logger.info("RAG fallback successful", {
+          userId,
+          requestedTopic,
+          chunksFound: ragContext.chunks.length,
+        });
+
+        return {
+          conceptId: `rag_${requestedTopic.toLowerCase().replace(/\s+/g, "_")}`,
+          conceptLabel: requestedTopic,
+          mastery: 0.5, // Default middle mastery for RAG-based concepts
+          effectiveMastery: 0.5,
+          isDueForReview: false,
+          priority: 1.0,
+          reason: "Generated from uploaded materials (RAG fallback)",
+          ragContent: formattedContent,
+        };
+      }
+    } catch (error) {
+      logger.warn("RAG fallback failed", {
+        userId,
+        requestedTopic,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+
+    // If we reach here, user requested a topic but we couldn't find it
+    // Log this important case and return null to trigger a helpful message
+    logger.warn("Requested topic not found in knowledge graph or RAG", {
+      userId,
+      requestedTopic,
+      suggestion: "User may need to upload materials about this topic",
+    });
+
+    // Return a special candidate that tells the LLM to inform the user
+    return {
+      conceptId: `requested_${requestedTopic.toLowerCase().replace(/\s+/g, "_")}`,
+      conceptLabel: requestedTopic,
+      mastery: 0,
+      effectiveMastery: 0,
+      isDueForReview: false,
+      priority: 1.0,
+      reason: `TOPIC NOT FOUND: "${requestedTopic}" was not found in your knowledge graph or uploaded materials. Please ask the user if they want to: 1) Upload materials about this topic, or 2) Choose a different topic from their existing content.`,
+      ragContent: undefined,
+    };
   }
 
   // Get concepts due for review (highest priority)
@@ -240,79 +447,84 @@ async function selectConcept(
 }
 
 /**
- * Generate question prompts based on type
+ * Generate instructions for the LLM to create a REAL scenario-based question
+ * Now supports RAG content for concepts not in knowledge graph
  */
-function getQuestionPrompt(
+function getQuestionInstructions(
   conceptLabel: string,
   questionType: QuestionType,
   difficulty: QuestionDifficulty,
-): { questionTemplate: string; hintTemplate: string } {
-  const templates: Record<
+  ragContent?: string,
+): {
+  instructions: string;
+  exampleQuestion: string;
+  expectedAnswerGuidance: string;
+} {
+  const difficultyGuidance: Record<QuestionDifficulty, string> = {
+    easy: "Ask a straightforward question with a clear answer. Test basic recognition or recall.",
+    medium:
+      "Create a realistic workplace scenario. Test practical application.",
+    hard: "Present a complex situation with trade-offs. Test analysis and judgment.",
+  };
+
+  const typeGuidance: Record<
     QuestionType,
-    Record<QuestionDifficulty, { question: string; hint: string }>
+    { instruction: string; example: string }
   > = {
     definition: {
-      easy: {
-        question: `What is ${conceptLabel}?`,
-        hint: `Think about the basic meaning or purpose of ${conceptLabel}.`,
-      },
-      medium: {
-        question: `Explain ${conceptLabel} in your own words.`,
-        hint: `Consider the key characteristics and how it's used.`,
-      },
-      hard: {
-        question: `Define ${conceptLabel} and explain its significance in context.`,
-        hint: `Think about why this concept matters and how it connects to other ideas.`,
-      },
+      instruction: `Create a question that tests if the user understands what "${conceptLabel}" means and why it matters.`,
+      example: `Example for "Access Logs": "A patient calls claiming someone unauthorized viewed their medical records. What system would you check first to verify this claim, and what information would it show you?"`,
     },
     application: {
-      easy: {
-        question: `Give a simple example of ${conceptLabel}.`,
-        hint: `Think of a basic scenario where ${conceptLabel} would be used.`,
-      },
-      medium: {
-        question: `How would you apply ${conceptLabel} in a practical situation?`,
-        hint: `Consider real-world scenarios or problems that ${conceptLabel} helps solve.`,
-      },
-      hard: {
-        question: `Describe a complex scenario where ${conceptLabel} would be critical and explain why.`,
-        hint: `Think about edge cases or challenging situations.`,
-      },
+      instruction: `Create a scenario where the user must apply "${conceptLabel}" to solve a real problem.`,
+      example: `Example for "Access Logs": "Your hospital's compliance officer asks you to prove that only authorized staff accessed a VIP patient's records last week. How would you gather this evidence?"`,
     },
     comparison: {
-      easy: {
-        question: `What is ${conceptLabel} similar to?`,
-        hint: `Think of related concepts or analogies.`,
-      },
-      medium: {
-        question: `Compare and contrast ${conceptLabel} with a related concept.`,
-        hint: `Consider both similarities and differences.`,
-      },
-      hard: {
-        question: `Analyze the relationship between ${conceptLabel} and its related concepts. What are the trade-offs?`,
-        hint: `Think about when you would choose one approach over another.`,
-      },
+      instruction: `Create a question that tests if the user can distinguish "${conceptLabel}" from related concepts.`,
+      example: `Example for "Access Logs": "A colleague suggests using firewall logs to track who viewed patient data. Why would access logs be more appropriate for this task?"`,
     },
     analysis: {
-      easy: {
-        question: `Why is ${conceptLabel} important?`,
-        hint: `Think about the benefits or problems it solves.`,
-      },
-      medium: {
-        question: `What are the key components or aspects of ${conceptLabel}?`,
-        hint: `Break it down into its main parts.`,
-      },
-      hard: {
-        question: `Critically analyze ${conceptLabel}. What are its strengths, limitations, and alternatives?`,
-        hint: `Consider multiple perspectives and potential drawbacks.`,
-      },
+      instruction: `Create a troubleshooting or investigation scenario involving "${conceptLabel}".`,
+      example: `Example for "Access Logs": "An audit reveals that access logs show 500 record views by one employee in a single hour. What does this suggest, and what should you do next?"`,
     },
   };
 
-  const template = templates[questionType][difficulty];
+  const guidance = typeGuidance[questionType];
+
+  // If RAG content is provided, include it in the instructions
+  const ragContextSection = ragContent
+    ? `
+
+**REFERENCE MATERIAL FROM USER'S UPLOADS:**
+${ragContent}
+
+Use the above material to create a question that tests understanding of "${conceptLabel}" based on what's actually in their uploaded content.
+`
+    : "";
+
   return {
-    questionTemplate: template.question,
-    hintTemplate: template.hint,
+    instructions: `
+## CREATE A SCENARIO-BASED QUESTION
+
+**Concept to test:** ${conceptLabel}
+**Difficulty:** ${difficulty} - ${difficultyGuidance[difficulty]}
+**Question type:** ${questionType}
+
+${guidance.instruction}
+
+**RULES:**
+1. Keep the question under 2 sentences
+2. Use a SPECIFIC, realistic scenario (not generic templates)
+3. The question should have a clear, testable answer
+4. Do NOT just ask "What is ${conceptLabel}?"
+
+${guidance.example}
+${ragContextSection}
+
+**NOW:** Create YOUR OWN scenario question about "${conceptLabel}" based on what you know from the user's uploaded materials. Make it specific to their domain/context.
+`,
+    exampleQuestion: guidance.example,
+    expectedAnswerGuidance: `The answer should demonstrate understanding of ${conceptLabel} - specifically its purpose, when to use it, and how it applies to the scenario.`,
   };
 }
 
@@ -329,9 +541,10 @@ export const adaptiveQuestionTool: ToolDefinition<
   name: "generate_adaptive_question",
   description:
     "Generate a question optimized for the user's current learning state. " +
-    "Automatically selects concepts that need review or reinforcement. " +
-    "Adjusts difficulty based on mastery level. " +
-    "Use this when testing user knowledge or during quiz/test sessions.",
+    "IMPORTANT: If the user asks about a SPECIFIC topic (e.g., 'Quiz me on Patient Lens AI', 'Ask about HIPAA'), " +
+    "you MUST pass that topic in the 'topic' parameter. " +
+    "If no topic is specified, auto-selects concepts that need review or reinforcement. " +
+    "Adjusts difficulty based on mastery level.",
 
   inputSchema: adaptiveQuestionInputSchema,
 
@@ -368,11 +581,24 @@ export const adaptiveQuestionTool: ToolDefinition<
         });
       }
 
-      // Select the best concept to ask about
+      // Get concepts already asked in this session to avoid repeating
+      const alreadyAskedConceptIds = session.questions.map((q) => q.conceptId);
+      const avoidIds = [
+        ...(input.avoidConceptIds || []),
+        ...alreadyAskedConceptIds,
+      ];
+
+      logger.info("Avoiding already-asked concepts", {
+        userId: context.userId,
+        alreadyAskedCount: alreadyAskedConceptIds.length,
+        avoidIds,
+      });
+
+      // Select the best concept to ask about (avoiding already-asked ones)
       const selectedConcept = await selectConcept(
         context.userId,
         input.topic,
-        input.avoidConceptIds,
+        avoidIds,
       );
 
       if (!selectedConcept) {
@@ -381,7 +607,37 @@ export const adaptiveQuestionTool: ToolDefinition<
           question: null,
           selectionReason: "No suitable concepts found for questioning",
           message:
-            "Unable to generate a question. The user may not have any concepts in their knowledge graph, or all concepts have been recently covered.",
+            "I don't have any study materials to quiz you on yet.\n\n" +
+            "**To start testing:**\n" +
+            "1. Switch to Learn mode (dropdown at bottom)\n" +
+            "2. Upload your study materials (PDFs, images, notes)\n" +
+            "3. Wait for processing (usually 30 seconds)\n" +
+            "4. Come back to Test mode and ask to be quizzed!\n\n" +
+            "Or try: 'Show available topics' to see what concepts are ready for testing.",
+        };
+      }
+
+      // Check if the topic was requested but not found
+      if (
+        input.topic &&
+        selectedConcept.reason.startsWith("TOPIC NOT FOUND:")
+      ) {
+        logger.info("User requested topic not found, informing user", {
+          userId: context.userId,
+          requestedTopic: input.topic,
+        });
+
+        return {
+          success: false,
+          question: null,
+          selectionReason: `Requested topic "${input.topic}" not found`,
+          message:
+            `I couldn't find "${input.topic}" in your uploaded materials or knowledge graph.\n\n` +
+            "**Would you like to:**\n" +
+            "1. **Upload materials** about this topic (switch to Learn mode)\n" +
+            "2. **Try a different topic** - ask me to quiz you on something else\n" +
+            "3. **See available topics** - say 'Show available topics' to see what I can quiz you on\n\n" +
+            "What would you prefer?",
         };
       }
 
@@ -415,21 +671,27 @@ export const adaptiveQuestionTool: ToolDefinition<
         input.questionType,
       );
 
-      // Generate question
-      const { questionTemplate, hintTemplate } = getQuestionPrompt(
+      // Get instructions for generating a contextual question
+      // Pass RAG content if this is a RAG-based concept
+      const { instructions, expectedAnswerGuidance } = getQuestionInstructions(
         selectedConcept.conceptLabel,
         questionType,
         difficulty,
+        selectedConcept.ragContent,
       );
 
+      // Instead of a static template, we return instructions for the LLM
+      // The LLM will use these + RAG context to create a real scenario
       const question: GeneratedQuestion = {
         conceptId: selectedConcept.conceptId,
         conceptLabel: selectedConcept.conceptLabel,
         difficulty,
         questionType,
-        question: questionTemplate,
-        expectedAnswer: `A complete answer should demonstrate understanding of ${selectedConcept.conceptLabel}.`,
-        hints: [hintTemplate],
+        question: instructions, // LLM will use this to generate the actual question
+        expectedAnswer: expectedAnswerGuidance,
+        hints: [
+          `Think about how ${selectedConcept.conceptLabel} is used in practice.`,
+        ],
         context: selectedConcept.reason,
       };
 
@@ -440,18 +702,21 @@ export const adaptiveQuestionTool: ToolDefinition<
         conceptLabel: selectedConcept.conceptLabel,
         difficulty,
         questionType,
-        question: questionTemplate,
-        expectedAnswer: question.expectedAnswer,
-        hints: [hintTemplate],
+        // Store a description for context, NOT a placeholder for the LLM to output
+        // The actual question will be generated by the LLM using the instructions
+        question: `Testing "${selectedConcept.conceptLabel}" - ${difficulty} difficulty, ${questionType} style`,
+        expectedAnswer: expectedAnswerGuidance,
+        hints: question.hints,
         createdAt: new Date().toISOString(),
       };
 
       await addQuestionToSession(context.userId, testQuestion);
 
-      logger.info("Question added to test session", {
+      logger.info("Question instructions generated", {
         userId: context.userId,
         questionId: testQuestion.questionId,
         sessionId: session.sessionId,
+        conceptLabel: selectedConcept.conceptLabel,
       });
 
       // Get alternative concepts for variety
@@ -460,7 +725,7 @@ export const adaptiveQuestionTool: ToolDefinition<
         .filter((c) => c.conceptId !== selectedConcept.conceptId)
         .map((c) => c.conceptLabel);
 
-      logger.info("Adaptive question generated", {
+      logger.info("Adaptive question prepared", {
         userId: context.userId,
         conceptId: selectedConcept.conceptId,
         difficulty,
@@ -474,7 +739,8 @@ export const adaptiveQuestionTool: ToolDefinition<
         question,
         selectionReason: selectedConcept.reason,
         alternativeConcepts,
-        message: `Generated ${difficulty} ${questionType} question about "${selectedConcept.conceptLabel}"`,
+        questionId: testQuestion.questionId,
+        message: `NOW CREATE AND ASK a ${difficulty} ${questionType} question about "${selectedConcept.conceptLabel}". DO NOT output this message - generate an actual scenario-based question using the instructions provided.`,
       };
     } catch (error) {
       logger.error("Failed to generate adaptive question", {
