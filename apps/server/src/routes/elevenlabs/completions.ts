@@ -9,15 +9,14 @@ import { Hono } from "hono";
 // ** import schema
 import { elevenlabsCompletionSchema } from "@/schema/elevenlabs";
 
+// ** import config
+import { env } from "@/config/env";
+
 // ** import utils
 import { processElevenLabsCompletion, extractUserId } from "@repo/elevenlabs";
 import { logger } from "@repo/logs";
 
 const completionsRoute = new Hono();
-
-// TODO: Remove this hardcoded user ID after testing
-// This is for testing ElevenLabs integration with agentic RAG
-const DEFAULT_TEST_USER_ID = "user_1766225500960_0hanw9e";
 
 /**
  * POST /elevenlabs/v1/chat/completions
@@ -84,11 +83,13 @@ completionsRoute.post("/completions", async (c: Context) => {
     const body = parseResult.data as ElevenLabsCompletionRequest;
 
     // Extract user ID from various sources
-    // Fall back to hardcoded test user for ElevenLabs testing
+    // Fall back to configured default user ID if not provided
     let userId = extractUserId(body as Record<string, unknown>);
     if (userId === "anonymous") {
-      userId = DEFAULT_TEST_USER_ID;
-      logger.info("Using default test user ID for ElevenLabs", { userId });
+      userId = env.DEFAULT_USER_ID;
+      logger.info("Using default user ID from config for ElevenLabs", {
+        userId,
+      });
     }
 
     // Extract conversation ID if provided

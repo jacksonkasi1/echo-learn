@@ -1,11 +1,17 @@
 // User context for consistent userId across the app
 // This provides a temporary user ID until proper auth is implemented
 
-import { createContext, useCallback, useContext, useState } from 'react'
+// ** import types
 import type { ReactNode } from 'react'
 
-// Hardcoded user ID - will be replaced with auth later
-const USER_ID = 'user_1766340918528_63z6u87'
+// ** import core packages
+import { createContext, useCallback, useContext, useState } from 'react'
+
+// ** import config
+import { env } from '@/config/env'
+
+// User ID from environment config
+const USER_ID = env.DEFAULT_USER_ID
 
 interface UserContextType {
   userId: string
@@ -50,5 +56,5 @@ export function useUserId(): string {
   return userId
 }
 
-// Export for cases where context isn't available
+// Export USER_ID for cases where context isn't available
 export { USER_ID }
