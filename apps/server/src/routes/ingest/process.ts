@@ -20,12 +20,13 @@ import {
   upsertWithEmbedding,
 } from "@repo/storage";
 import {
-  extractTextWithGeminiOCR,
+  extractTextWithMistralOCR,
   isSupportedFileType,
   chunkText,
 } from "@repo/ingest";
 import { generateGraphFromChunks, mergeGraphIntoMain } from "@repo/graph";
 import { logger } from "@repo/logs";
+import { bulkCreateInitialMastery } from "@repo/storage";
 
 const ingestRoute = new Hono();
 
@@ -157,13 +158,13 @@ ingestRoute.post("/", zValidator("json", ingestSchema), async (c: Context) => {
         const response = await fetch(signedUrl);
         ocrText = await response.text();
       } else if (isSupportedFileType(metadata.contentType)) {
-        // Use Gemini 2.0 Flash for PDFs, images, and documents (multimodal)
-        logger.info("Starting OCR extraction", {
+        // Use Mistral OCR for PDFs, images, and documents
+        logger.info("Starting OCR extraction with Mistral", {
           fileId,
           contentType: metadata.contentType,
         });
 
-        const ocrResult = await extractTextWithGeminiOCR(signedUrl);
+        const ocrResult = await extractTextWithMistralOCR(signedUrl);
         ocrText = ocrResult.markdown;
 
         // Cache the result
@@ -281,6 +282,50 @@ ingestRoute.post("/", zValidator("json", ingestSchema), async (c: Context) => {
       userId,
       ...mergeResult,
     });
+
+    // 9. Auto-populate mastery entries for discovered concepts
+    logger.info("Auto-populating mastery entries from knowledge graph", {
+      fileId,
+      userId,
+      nodeCount: graph.nodes.length,
+    });
+
+    try {
+      // Extract concept nodes from the generated graph
+      const concepts = graph.nodes
+        .filter((node) => node.type === "concept" || node.type === "term")
+        .map((node) => ({
+          conceptId: node.id,
+          conceptLabel: node.label,
+        }));
+
+      if (concepts.length > 0) {
+        const createdCount = await bulkCreateInitialMastery(
+          userId,
+          concepts,
+          0.3, // Initial mastery: beginner level
+        );
+
+        logger.info("Mastery entries auto-populated", {
+          fileId,
+          userId,
+          totalConcepts: concepts.length,
+          createdCount,
+        });
+      } else {
+        logger.info("No concepts found to auto-populate mastery", {
+          fileId,
+          userId,
+        });
+      }
+    } catch (error) {
+      // Don't fail the entire pipeline if mastery population fails
+      logger.warn("Failed to auto-populate mastery entries", {
+        fileId,
+        userId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
 
     // Update file status to processed
     await updateFileStatus(fileId, "processed");
