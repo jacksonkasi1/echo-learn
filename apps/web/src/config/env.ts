@@ -8,6 +8,10 @@ export const env = {
   // Environment mode
   NODE_ENV: import.meta.env.MODE || 'development',
 
+  // Default User ID (until proper auth is implemented)
+  // Fallback: user_1766340918528_63z6u87
+  DEFAULT_USER_ID: import.meta.env.VITE_DEFAULT_USER_ID || 'user_1766340918528_63z6u87',
+
   // Feature flags
   ENABLE_VOICE: import.meta.env.VITE_ENABLE_VOICE === 'true',
 
