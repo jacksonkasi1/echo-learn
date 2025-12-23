@@ -1,32 +1,58 @@
-import { useState } from "react";
-import { ChevronDown, ClipboardList, GraduationCap, MessageSquare } from "lucide-react";
-import {  useLearningContext } from "./LearningContext";
-import type {ChatMode} from "./LearningContext";
-import { cn } from "@/lib/utils";
+import { useState } from 'react'
+import {
+  ChevronDown,
+  ClipboardList,
+  GraduationCap,
+  MessageSquare,
+} from 'lucide-react'
+import { useLearningContext } from './LearningContext'
+import type { ChatMode } from './LearningContext'
+import type { TestConfiguration } from '@repo/shared'
+import { cn } from '@/lib/utils'
+import { TestConfigModal } from '@/components/test-mode/TestConfigModal'
 
-const MODES: Record<ChatMode, { label: string; icon: React.ReactNode; description: string }> = {
+const MODES: Record<
+  ChatMode,
+  { label: string; icon: React.ReactNode; description: string }
+> = {
   learn: {
-    label: "Learn",
+    label: 'Learn',
     icon: <GraduationCap className="size-4" />,
-    description: "Automatic progress tracking",
+    description: 'Automatic progress tracking',
   },
   chat: {
-    label: "Chat",
+    label: 'Chat',
     icon: <MessageSquare className="size-4" />,
-    description: "Off-the-record conversation",
+    description: 'Off-the-record conversation',
   },
   test: {
-    label: "Test",
+    label: 'Test',
     icon: <ClipboardList className="size-4" />,
-    description: "Active knowledge testing",
+    description: 'Active knowledge testing',
   },
-};
+}
 
 export function ModeSelector() {
-  const { mode, setMode } = useLearningContext();
-  const [isOpen, setIsOpen] = useState(false);
+  const { mode, setMode, startTestWithConfig } = useLearningContext()
+  const [isOpen, setIsOpen] = useState(false)
+  const [isTestConfigOpen, setIsTestConfigOpen] = useState(false)
 
-  const currentMode = MODES[mode];
+  const currentMode = MODES[mode]
+
+  const handleModeSelect = (modeKey: ChatMode) => {
+    if (modeKey === 'test') {
+      // Open config modal instead of switching directly
+      setIsTestConfigOpen(true)
+    } else {
+      setMode(modeKey)
+    }
+    setIsOpen(false)
+  }
+
+  const handleStartTest = (config: TestConfiguration) => {
+    startTestWithConfig(config)
+    setIsTestConfigOpen(false)
+  }
 
   return (
     <div className="relative inline-block text-left">
@@ -61,38 +87,49 @@ export function ModeSelector() {
           >
             <div className="p-1">
               {(Object.keys(MODES) as Array<ChatMode>).map((modeKey) => {
-                const modeInfo = MODES[modeKey];
-                const isSelected = mode === modeKey;
+                const modeInfo = MODES[modeKey]
+                const isSelected = mode === modeKey
 
                 return (
                   <button
                     key={modeKey}
-                    onClick={() => {
-                      setMode(modeKey);
-                      setIsOpen(false);
-                    }}
+                    onClick={() => handleModeSelect(modeKey)}
                     className={cn(
-                      "relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-                      isSelected && "bg-accent/50 text-accent-foreground"
+                      'relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+                      isSelected && 'bg-accent/50 text-accent-foreground',
                     )}
                     role="menuitem"
                   >
                     <div className="flex items-center gap-2">
-                      <div className={cn("flex items-center justify-center size-8 rounded-md border bg-background", isSelected && "border-primary/50 text-primary")}>
+                      <div
+                        className={cn(
+                          'flex items-center justify-center size-8 rounded-md border bg-background',
+                          isSelected && 'border-primary/50 text-primary',
+                        )}
+                      >
                         {modeInfo.icon}
                       </div>
                       <div className="flex flex-col items-start text-left">
                         <span className="font-medium">{modeInfo.label}</span>
-                        <span className="text-xs text-muted-foreground">{modeInfo.description}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {modeInfo.description}
+                        </span>
                       </div>
                     </div>
                   </button>
-                );
+                )
               })}
             </div>
           </div>
         </>
       )}
+
+      {/* Test Configuration Modal */}
+      <TestConfigModal
+        isOpen={isTestConfigOpen}
+        onClose={() => setIsTestConfigOpen(false)}
+        onStartTest={handleStartTest}
+      />
     </div>
-  );
+  )
 }

@@ -83,6 +83,7 @@ function parseToolUIMarkers(text: string): {
 function createModelAdapter(
   userId: string,
   mode: 'learn' | 'chat' | 'test',
+  skillLevel?: 'beginner' | 'intermediate' | 'pro',
   onRagInfo?: (info: RagInfo) => void,
   onResponseComplete?: (assistantResponse: string, userMessage: string) => void,
 ): ChatModelAdapter {
@@ -175,6 +176,7 @@ function createModelAdapter(
             messages: filteredMessages,
             userId,
             mode,
+            skillLevel,
             maxTokens: 4000,
             useRag: true,
             ragTopK: 50,
@@ -290,8 +292,8 @@ export function MyRuntimeProvider({
   // Get userId from context for RAG-enabled chat
   const userId = useUserId()
 
-  // Get setLastMessages from learning context for smart follow-up suggestions
-  const { setLastMessages } = useLearningContext()
+  // Get setLastMessages and testConfig from learning context
+  const { setLastMessages, testConfig } = useLearningContext()
 
   // Callback when response completes - triggers smart follow-up generation
   const handleResponseComplete = useCallback(
@@ -301,10 +303,20 @@ export function MyRuntimeProvider({
     [setLastMessages],
   )
 
-  // Create adapter with current userId and response callback
+  // Create adapter with current userId, mode, skillLevel and response callback
+  // Default to 'intermediate' if testConfig is null (user hasn't changed the dropdown)
+  const skillLevel = testConfig?.skillLevel || 'intermediate'
+
   const adapter = useMemo(
-    () => createModelAdapter(userId, mode, onRagInfo, handleResponseComplete),
-    [userId, mode, onRagInfo, handleResponseComplete],
+    () =>
+      createModelAdapter(
+        userId,
+        mode,
+        skillLevel,
+        onRagInfo,
+        handleResponseComplete,
+      ),
+    [userId, mode, skillLevel, onRagInfo, handleResponseComplete],
   )
 
   // Use useLocalRuntime which manages state automatically
