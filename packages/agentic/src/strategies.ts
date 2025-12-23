@@ -40,6 +40,7 @@ import { logger } from "@repo/logs";
  */
 export interface ModeAwareQueryOptions extends QueryProcessingOptions {
   mode?: ChatMode;
+  skillLevel?: "beginner" | "intermediate" | "pro";
 }
 
 /**
@@ -239,6 +240,7 @@ export async function executeUnifiedAgenticStrategy(
         content: m.content,
       })),
       isVoiceMode: options.isVoiceMode,
+      skillLevel: options.skillLevel,
     });
 
     logger.info("Mode initialized", {

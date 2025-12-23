@@ -675,3 +675,158 @@ export async function getConceptsByMasteryRange(
     throw error;
   }
 }
+
+/**
+ * Search for concepts by fuzzy matching keywords in labels
+ * Used when user asks about a topic that doesn't exactly match concept IDs
+ *
+ * @param userId - User ID
+ * @param searchQuery - User's search query (e.g., "HIPAA compliance requirements")
+ * @param limit - Maximum number of results to return
+ * @returns Array of matching concepts
+ */
+export async function searchConceptsByKeywords(
+  userId: string,
+  searchQuery: string,
+  limit: number = 5,
+): Promise<ConceptWithEffectiveMastery[]> {
+  try {
+    // Get all concepts for the user
+    const allMastery = await getAllMastery(userId);
+
+    if (allMastery.length === 0) {
+      return [];
+    }
+
+    // Extract keywords from search query (split by spaces, lowercase)
+    const keywords = searchQuery
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 2); // Ignore very short words
+
+    // Score each concept based on keyword matches
+    const scoredConcepts = allMastery.map((concept) => {
+      const labelLower = concept.conceptLabel.toLowerCase();
+      const idLower = concept.conceptId.toLowerCase();
+
+      let score = 0;
+
+      // Check each keyword
+      for (const keyword of keywords) {
+        // Exact match in label (highest score)
+        if (labelLower.includes(keyword)) {
+          score += 10;
+        }
+        // Match in concept ID
+        if (idLower.includes(keyword)) {
+          score += 5;
+        }
+        // Partial match (first 4 characters)
+        if (keyword.length >= 4) {
+          const prefix = keyword.slice(0, 4);
+          if (labelLower.includes(prefix) || idLower.includes(prefix)) {
+            score += 2;
+          }
+        }
+      }
+
+      return { concept, score };
+    });
+
+    // Filter out concepts with no matches and sort by score
+    const matches = scoredConcepts
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map((item) => item.concept);
+
+    logger.info("Fuzzy concept search completed", {
+      userId,
+      searchQuery,
+      totalConcepts: allMastery.length,
+      matchesFound: matches.length,
+    });
+
+    return matches;
+  } catch (error) {
+    logger.error("Failed to search concepts by keywords", {
+      userId,
+      searchQuery,
+      error,
+    });
+    return [];
+  }
+}
+
+/**
+ * Bulk create initial mastery entries for multiple concepts
+ * Used when documents are uploaded to auto-populate knowledge graph
+ *
+ * @param userId - User ID
+ * @param concepts - Array of concepts with id and label
+ * @param initialMastery - Initial mastery score (default: 0.3)
+ * @returns Number of concepts created
+ */
+export async function bulkCreateInitialMastery(
+  userId: string,
+  concepts: Array<{ conceptId: string; conceptLabel: string }>,
+  initialMastery: number = 0.3,
+): Promise<number> {
+  try {
+    if (concepts.length === 0) {
+      return 0;
+    }
+
+    logger.info("Bulk creating initial mastery entries", {
+      userId,
+      conceptCount: concepts.length,
+      initialMastery,
+    });
+
+    let createdCount = 0;
+
+    // Process concepts in parallel for speed
+    await Promise.all(
+      concepts.map(async ({ conceptId, conceptLabel }) => {
+        try {
+          // Check if mastery already exists
+          const existing = await getMastery(userId, conceptId);
+
+          if (!existing) {
+            // Create new mastery entry
+            await createMastery(
+              userId,
+              conceptId,
+              conceptLabel,
+              initialMastery,
+            );
+            createdCount++;
+          } else {
+            logger.debug("Mastery entry already exists, skipping", {
+              userId,
+              conceptId,
+            });
+          }
+        } catch (error) {
+          logger.warn("Failed to create mastery for concept", {
+            userId,
+            conceptId,
+            error: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
+      }),
+    );
+
+    logger.info("Bulk mastery creation completed", {
+      userId,
+      totalConcepts: concepts.length,
+      createdCount,
+      skippedCount: concepts.length - createdCount,
+    });
+
+    return createdCount;
+  } catch (error) {
+    logger.error("Failed to bulk create initial mastery", { userId, error });
+    throw error;
+  }
+}

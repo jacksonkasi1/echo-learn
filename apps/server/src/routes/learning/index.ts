@@ -20,6 +20,7 @@ import {
 
 // ** import routes
 import { suggestionsRoute } from "./suggestions.js";
+import { testRoute } from "./test.js";
 
 // ** import utils
 import { logger } from "@repo/logs";
@@ -28,6 +29,9 @@ const learningRoute = new Hono();
 
 // Mount suggestions routes under /learning/suggestions
 learningRoute.route("/suggestions", suggestionsRoute);
+
+// Mount test routes under /learning/test
+learningRoute.route("/test", testRoute);
 
 /**
  * GET /learning/mastery-map

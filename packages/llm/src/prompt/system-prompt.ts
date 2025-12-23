@@ -7,6 +7,8 @@ export interface PromptContext {
   knowledgeChunks: string[];
   userProfile: UserProfile;
   conversationHistory?: Array<{ role: string; content: string }>;
+  mode?: "learn" | "chat" | "test";
+  skillLevel?: "beginner" | "intermediate" | "pro";
 }
 
 /**
@@ -14,10 +16,13 @@ export interface PromptContext {
  * Combines persona, knowledge context, user profile, and behavior rules
  */
 export function buildSystemPrompt(context: PromptContext): string {
-  const { knowledgeChunks, userProfile } = context;
+  const { knowledgeChunks, userProfile, mode, skillLevel } = context;
+
+  // Use override skill level if provided, otherwise fall back to profile level
+  const effectiveLevel = skillLevel || userProfile.level;
 
   const knowledgeSection = formatKnowledgeSection(knowledgeChunks);
-  const profileSection = formatProfileSection(userProfile);
+  const profileSection = formatProfileSection(userProfile, skillLevel);
 
   // Split core instructions to inject context in the middle
   const parts = CORE_INSTRUCTIONS.split("## Your Behavior Guidelines");
@@ -26,11 +31,25 @@ export function buildSystemPrompt(context: PromptContext): string {
 
   const guidelines = guidelinesTemplate.replace(
     "{{userLevel}}",
-    userProfile.level,
+    effectiveLevel,
   );
+
+  // Mode-specific instructions
+  let modeInstructions = "";
+  if (mode === "test") {
+    modeInstructions = `
+## Test Mode active
+You are currently in Test Mode. Your primary goal is to assess the user's knowledge.
+- Ask challenging but fair questions based on the materials.
+- Evaluate the user's responses accurately.
+- Provide constructive feedback.
+- Use the available quiz tools to present questions when appropriate.
+`;
+  }
 
   return `
 ${persona.trim()}
+${modeInstructions}
 
 ## Knowledge Context
 The following excerpts are from the user's uploaded study materials. Use ONLY this information to answer questions:
@@ -61,10 +80,13 @@ function formatKnowledgeSection(chunks: string[]): string {
 /**
  * Format user profile into a readable section
  */
-function formatProfileSection(profile: UserProfile): string {
+function formatProfileSection(
+  profile: UserProfile,
+  skillLevelOverride?: string,
+): string {
   const parts: string[] = [];
 
-  parts.push(`- Experience Level: ${profile.level}`);
+  parts.push(`- Experience Level: ${skillLevelOverride || profile.level}`);
   parts.push(`- Questions Answered: ${profile.questionsAnswered}`);
 
   if (profile.weakAreas.length > 0) {

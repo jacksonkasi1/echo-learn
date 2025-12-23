@@ -83,3 +83,14 @@ export type {
   FollowUpSuggestionsResponse,
   TopicsResponse,
 } from './suggestions'
+
+// Export test API
+export { testApi } from './test'
+export type {
+  TestProgress,
+  StartTestResponse,
+  GetSessionResponse,
+  CompleteTestResponse,
+  GetHistoryResponse,
+  GetProgressResponse,
+} from './test'

@@ -78,21 +78,21 @@ const MODE_GENERIC_SUGGESTIONS: Record<
 > = {
   learn: [
     { title: "Get started", text: "How do I start learning?" },
-    { title: "Study tips", text: "Best study techniques?" },
-    { title: "Learning plan", text: "Create a learning plan" },
-    { title: "Upload help", text: "How to upload materials?" },
+    { title: "Upload materials", text: "How do I upload study materials?" },
+    { title: "Study tips", text: "What are effective study techniques?" },
+    { title: "Learning plan", text: "Help me create a learning plan" },
   ],
   chat: [
     { title: "Ask anything", text: "What can you help with?" },
     { title: "Explore", text: "Tell me something interesting" },
-    { title: "Get help", text: "I need help" },
-    { title: "Topics", text: "What can we discuss?" },
+    { title: "Get help", text: "I need help with something" },
+    { title: "Topics", text: "What topics can we discuss?" },
   ],
   test: [
-    { title: "Quick quiz", text: "Ask me a question" },
-    { title: "Challenge me", text: "Give me a hard question" },
-    { title: "Random topic", text: "Quiz me on anything" },
-    { title: "Mixed quiz", text: "Ask me various questions" },
+    { title: "Upload first", text: "How do I add study materials to quiz on?" },
+    { title: "Get started", text: "How does test mode work?" },
+    { title: "Need materials", text: "I want to add topics to quiz on" },
+    { title: "Help", text: "How do I start testing?" },
   ],
 };
 

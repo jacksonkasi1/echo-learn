@@ -138,6 +138,7 @@ export async function processCompletion(
   const enableMultiStep = (body as any).enable_multi_step !== false; // Default true
   const maxIterations = (body as any).max_iterations || 5;
   const mode: ChatMode = body.mode || "learn"; // Default to learn mode
+  const skillLevel = body.skill_level;
 
   logger.info("Processing chat request", {
     userId,
@@ -146,6 +147,7 @@ export async function processCompletion(
     enableAgentic,
     enableReranking,
     mode,
+    skillLevel,
   });
 
   // Extract user message
@@ -169,6 +171,7 @@ export async function processCompletion(
         enableMultiStep,
         maxIterations,
         mode,
+        skillLevel,
       },
       startTime,
     );
@@ -186,6 +189,7 @@ export async function processCompletion(
       ragMinScore,
       useRag,
       mode,
+      skillLevel,
     },
     startTime,
   );
@@ -207,6 +211,7 @@ async function processAgenticCompletion(
     enableMultiStep: boolean;
     maxIterations: number;
     mode: ChatMode;
+    skillLevel?: "beginner" | "intermediate" | "pro";
   },
   startTime: number,
 ): Promise<CompletionResult> {
@@ -214,6 +219,7 @@ async function processAgenticCompletion(
     logger.info("Using agentic router for completion", {
       userId,
       mode: options.mode,
+      skillLevel: options.skillLevel,
       enableReranking: options.enableReranking,
       enableMultiStep: options.enableMultiStep,
     });
@@ -234,6 +240,7 @@ async function processAgenticCompletion(
       enableMultiStep: options.enableMultiStep,
       maxIterations: options.maxIterations,
       mode: options.mode,
+      skillLevel: options.skillLevel,
     };
 
     // Process query with agentic router
@@ -335,6 +342,7 @@ async function processLegacyCompletion(
     ragMinScore: number;
     useRag: boolean;
     mode: ChatMode;
+    skillLevel?: "beginner" | "intermediate" | "pro";
   },
   startTime: number,
 ): Promise<CompletionResult> {
@@ -360,6 +368,8 @@ async function processLegacyCompletion(
   const systemPrompt = buildSystemPrompt({
     knowledgeChunks,
     userProfile,
+    mode: options.mode,
+    skillLevel: options.skillLevel,
   });
 
   // Filter conversation messages

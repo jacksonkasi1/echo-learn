@@ -43,10 +43,12 @@ function ChatContent({
   onRagInfo: (info: RagInfo) => void
   ragInfo: RagInfo
 }) {
-  const { mode } = useLearningContext()
+  const { mode, runtimeKey } = useLearningContext()
 
+  // Key prop on MyRuntimeProvider forces re-mount when switching to test mode
+  // This clears the chat history and creates a fresh session
   return (
-    <MyRuntimeProvider onRagInfo={onRagInfo} mode={mode}>
+    <MyRuntimeProvider key={runtimeKey} onRagInfo={onRagInfo} mode={mode}>
       <div className="relative h-full">
         <Thread />
         <RagInfoDisplay ragInfo={ragInfo} />

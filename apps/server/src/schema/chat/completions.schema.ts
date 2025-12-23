@@ -41,6 +41,7 @@ export const chatCompletionSchema = z
     temperature: z.number().optional().default(0.7),
     stream: z.boolean().optional().default(true),
     mode: chatModeSchema.optional(), // NEW: Chat mode (learn/chat/test)
+    skill_level: z.enum(["beginner", "intermediate", "pro"]).optional(),
   })
   .merge(ragOptionsSchema);
 

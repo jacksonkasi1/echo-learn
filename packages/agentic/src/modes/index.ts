@@ -47,6 +47,8 @@ export interface ModeContext {
   conversationHistory: Array<{ role: string; content: string }>;
   /** Whether this is a voice interaction (ElevenLabs) - disables interactive UI tools */
   isVoiceMode?: boolean;
+  /** Skill level override for test mode (beginner/intermediate/pro) */
+  skillLevel?: "beginner" | "intermediate" | "pro";
 }
 
 /**
@@ -120,6 +122,7 @@ export async function initializeMode(
         config: mergedConfig.test,
         activeSession: testState.session ?? undefined,
         isVoiceMode: context.isVoiceMode,
+        skillLevel: context.skillLevel,
       };
       return initializeTestMode(testContext);
     }
