@@ -154,7 +154,7 @@ export function FloatingVoice() {
         )}
 
         {/* Voice Orb - only if ElevenLabs is configured */}
-        {isElevenLabsConfigured && (
+        {showVoiceOrb && (
           <AnimatePresence>
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
