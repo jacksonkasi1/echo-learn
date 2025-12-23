@@ -11,6 +11,7 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   CheckIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClipboardList,
@@ -19,10 +20,12 @@ import {
   MessageSquare,
   PencilIcon,
   RefreshCwIcon,
+  Settings,
   Square,
   Volume2Icon,
   VolumeXIcon,
 } from 'lucide-react'
+import { DEFAULT_TEST_CONFIGURATION } from '@repo/shared'
 import type { FC } from 'react'
 
 import type { ChatMode } from '@/components/learning/LearningContext'
@@ -135,7 +138,9 @@ const ThreadSuggestions: FC = () => {
     return (
       <div className="aui-thread-welcome-suggestions flex w-full flex-col gap-4 pb-4">
         {!hasContent && (
-          <p className="text-muted-foreground text-center">{emptyMessages[mode]}</p>
+          <p className="text-muted-foreground text-center">
+            {emptyMessages[mode]}
+          </p>
         )}
         <div className="grid w-full @md:grid-cols-2 gap-2">
           {suggestions.map((suggestion, index) => (
@@ -262,13 +267,72 @@ const Composer: FC = () => {
 }
 
 const ComposerToolbar: FC = () => {
+  const { mode } = useLearningContext()
+
   return (
     <div className="flex items-center justify-between px-2 pb-2">
       <div className="flex items-center gap-1">
         <ComposerModeSelector />
+        {mode === 'test' && <TestModeControls />}
       </div>
       <ComposerAction />
     </div>
+  )
+}
+
+const TestModeControls: FC = () => {
+  const { testConfig, startTestWithConfig } = useLearningContext()
+
+  const skillLevels = [
+    { value: 'beginner', label: 'Beginner' },
+    { value: 'intermediate', label: 'Intermediate' },
+    { value: 'pro', label: 'Pro' },
+  ] as const
+
+  const currentLevel = testConfig?.skillLevel || 'intermediate'
+
+  const handleSkillChange = (newSkill: 'beginner' | 'intermediate' | 'pro') => {
+    const baseConfig = testConfig || DEFAULT_TEST_CONFIGURATION
+    startTestWithConfig({
+      ...baseConfig,
+      skillLevel: newSkill,
+    })
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1 px-2 text-muted-foreground hover:text-foreground"
+        >
+          <Settings className="size-4" />
+          <span className="text-xs">
+            {skillLevels.find((s) => s.value === currentLevel)?.label ||
+              'Level'}
+          </span>
+          <ChevronDownIcon className="size-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {skillLevels.map((level) => (
+          <DropdownMenuItem
+            key={level.value}
+            onClick={() => handleSkillChange(level.value)}
+            className="gap-2"
+          >
+            <CheckIcon
+              className={cn(
+                'size-4',
+                currentLevel === level.value ? 'opacity-100' : 'opacity-0',
+              )}
+            />
+            {level.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -388,7 +452,7 @@ const AssistantMessage: FC = () => {
       </div>
 
       {/* Follow-up suggestions - only shown on last message when not running */}
-      <MessagePrimitive.If lastOrHover>
+      <MessagePrimitive.If last>
         <AssistantIf condition={({ thread }) => !thread.isRunning}>
           <div className="mx-2">
             <FollowUpSuggestions />
