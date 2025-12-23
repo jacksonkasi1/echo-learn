@@ -79,6 +79,8 @@ export interface TestModeContext {
   activeSession?: TestSession;
   /** Whether this is a voice interaction (ElevenLabs) - uses verbal questions instead of UI tools */
   isVoiceMode?: boolean;
+  /** Skill level for question difficulty (beginner/intermediate/pro) */
+  skillLevel?: "beginner" | "intermediate" | "pro";
 }
 
 /**
@@ -107,6 +109,7 @@ export async function initializeTestMode(
   logger.info("Initializing test mode", {
     userId: context.userId,
     hasActiveSession: !!context.activeSession,
+    skillLevel: context.skillLevel,
   });
 
   // Check for existing session
@@ -135,6 +138,7 @@ export async function initializeTestMode(
     currentQuestion,
     progress,
     context.isVoiceMode ?? false,
+    context.skillLevel,
   );
 
   return {
