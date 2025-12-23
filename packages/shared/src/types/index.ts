@@ -19,6 +19,30 @@ export type {
 
 export { DEFAULT_CONCEPT_MASTERY, MODE_PROMPTS } from "./learning.js";
 
+// Test configuration types
+export type {
+  SkillLevel,
+  QuestionStyle,
+  QuestionFormat,
+  TimingMode,
+  ScenarioType,
+  TestConfiguration,
+  ScenarioContext,
+  DetailedEvaluation,
+} from "./test-config.js";
+
+export {
+  SKILL_LEVEL_DIFFICULTY_MAP,
+  DIFFICULTY_SKILL_LEVEL_MAP,
+  DEFAULT_TEST_CONFIGURATION,
+  QUESTION_COUNT_OPTIONS,
+  TIME_PER_QUESTION_OPTIONS,
+  SKILL_LEVEL_INFO,
+  QUESTION_STYLE_INFO,
+  QUESTION_FORMAT_INFO,
+  TIMING_MODE_INFO,
+} from "./test-config.js";
+
 // Test session types
 export type {
   TestSessionStatus,
