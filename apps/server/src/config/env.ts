@@ -16,8 +16,7 @@ export const env = {
 
   // Default User ID (until proper auth is implemented)
   // Fallback: user_1766340918528_63z6u87
-  DEFAULT_USER_ID:
-    process.env.DEFAULT_USER_ID || "user_1766340918528_63z6u87",
+  DEFAULT_USER_ID: process.env.DEFAULT_USER_ID || "user_1766340918528_63z6u87",
 
   // Upstash Vector
   UPSTASH_VECTOR_REST_URL: process.env.UPSTASH_VECTOR_REST_URL || "",
@@ -29,12 +28,14 @@ export const env = {
 
   // Google Cloud Storage
   GCS_PROJECT_ID: process.env.GCS_PROJECT_ID || "",
-  GCS_KEY_FILE: process.env.GCS_KEY_FILE || "",
+  GCS_KEY_FILE: process.env.GCS_KEY_FILE || "", // For local development
   GCS_BUCKET_NAME: process.env.GCS_BUCKET_NAME || "",
+  // For Cloud Run deployment (pass credentials directly instead of file)
+  GCS_CLIENT_EMAIL: process.env.GCS_CLIENT_EMAIL || "",
+  GCS_PRIVATE_KEY: process.env.GCS_PRIVATE_KEY || "",
 
   // AI API Keys
-  GOOGLE_GENERATIVE_AI_API_KEY:
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
+  GOOGLE_GENERATIVE_AI_API_KEY: process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
   COHERE_API_KEY: process.env.COHERE_API_KEY || "",
   MISTRAL_API_KEY: process.env.MISTRAL_API_KEY || "",
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
