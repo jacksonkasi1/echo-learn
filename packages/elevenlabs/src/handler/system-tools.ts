@@ -1,5 +1,9 @@
 // ** import types
-import type { SystemToolCall, SystemToolResult, ElevenLabsTool } from "../types/index.js";
+import type {
+  SystemToolCall,
+  SystemToolResult,
+  ElevenLabsTool,
+} from "../types/index.js";
 
 // ** import utils
 import { logger } from "@repo/logs";
@@ -97,7 +101,9 @@ function handleSkipTurn(args: Record<string, unknown>): SystemToolResult {
  * Handle the language_detection system tool
  * Called when language switch is detected
  */
-function handleLanguageDetection(args: Record<string, unknown>): SystemToolResult {
+function handleLanguageDetection(
+  args: Record<string, unknown>,
+): SystemToolResult {
   const reason = (args.reason as string) || "Language switch detected";
   const language = args.language as string | undefined;
 
@@ -114,7 +120,9 @@ function handleLanguageDetection(args: Record<string, unknown>): SystemToolResul
  * Handle the transfer_to_agent system tool
  * Called when transfer to another agent is needed
  */
-function handleTransferToAgent(args: Record<string, unknown>): SystemToolResult {
+function handleTransferToAgent(
+  args: Record<string, unknown>,
+): SystemToolResult {
   const reason = (args.reason as string) || "Transfer requested";
   const agentNumber = args.agent_number as number | undefined;
 
@@ -132,7 +140,9 @@ function handleTransferToAgent(args: Record<string, unknown>): SystemToolResult 
  * Handle the transfer_to_number system tool
  * Called when transfer to a phone number is needed
  */
-function handleTransferToNumber(args: Record<string, unknown>): SystemToolResult {
+function handleTransferToNumber(
+  args: Record<string, unknown>,
+): SystemToolResult {
   const reason = (args.reason as string) || "Transfer to human requested";
   const clientMessage = args.client_message as string | undefined;
 
@@ -150,7 +160,9 @@ function handleTransferToNumber(args: Record<string, unknown>): SystemToolResult
  * Handle the voicemail_detection system tool
  * Called when voicemail is detected
  */
-function handleVoicemailDetection(args: Record<string, unknown>): SystemToolResult {
+function handleVoicemailDetection(
+  args: Record<string, unknown>,
+): SystemToolResult {
   const reason = (args.reason as string) || "Voicemail detected";
 
   logger.info("Voicemail detection tool invoked", { reason });
@@ -165,7 +177,9 @@ function handleVoicemailDetection(args: Record<string, unknown>): SystemToolResu
 /**
  * Process a system tool call and return the result
  */
-export function handleSystemTool(toolCall: SystemToolCall): SystemToolResult | null {
+export function handleSystemTool(
+  toolCall: SystemToolCall,
+): SystemToolResult | null {
   const { name, arguments: argsJson } = toolCall.function;
 
   // Check if it's a known system tool
@@ -202,51 +216,4 @@ export function handleSystemTool(toolCall: SystemToolCall): SystemToolResult | n
       const _exhaustive: never = name;
       return null;
   }
-}
-
-/**
- * Check if a message indicates the user wants to end the conversation
- */
-export function shouldEndConversation(userMessage: string): boolean {
-  const endPhrases = [
-    "goodbye",
-    "bye",
-    "see you",
-    "thanks, bye",
-    "that's all",
-    "i'm done",
-    "end call",
-    "hang up",
-    "talk later",
-    "gotta go",
-  ];
-
-  const lowerMessage = userMessage.toLowerCase().trim();
-
-  return endPhrases.some(
-    (phrase) =>
-      lowerMessage === phrase ||
-      lowerMessage.endsWith(phrase) ||
-      lowerMessage.startsWith(phrase)
-  );
-}
-
-/**
- * Check if user needs time (skip turn scenario)
- */
-export function shouldSkipTurn(userMessage: string): boolean {
-  const skipPhrases = [
-    "give me a moment",
-    "let me think",
-    "one second",
-    "hold on",
-    "wait",
-    "hmm",
-    "um",
-    "uh",
-  ];
-
-  const lowerMessage = userMessage.toLowerCase().trim();
-
-  return skipPhrases.some((phrase) => lowerMessage.includes(phrase));
 }

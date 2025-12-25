@@ -20,7 +20,6 @@ import {
   formatBufferSSE,
   shouldUseBufferWords,
 } from "../sse/index.js";
-import { shouldEndConversation, shouldSkipTurn } from "./system-tools.js";
 
 /**
  * Extract the latest user message from conversation
@@ -271,30 +270,9 @@ export async function processElevenLabsCompletion(
       throw new Error("No user message provided");
     }
 
-    // Check for conversation control scenarios
-    if (shouldEndConversation(userMessage)) {
-      logger.info("User requested end of conversation", { userId });
-      // Return a farewell message
-      const farewellStream = createFarewellStream();
-      return {
-        stream: farewellStream,
-        knowledgeChunks: [],
-        retrievedSources: [],
-        conversationId,
-      };
-    }
-
-    if (shouldSkipTurn(userMessage)) {
-      logger.info("User needs time, skipping turn", { userId });
-      // Return empty/minimal response
-      const skipStream = createSkipTurnStream();
-      return {
-        stream: skipStream,
-        knowledgeChunks: [],
-        retrievedSources: [],
-        conversationId,
-      };
-    }
+    // Note: Conversation control (end_call, skip_turn) is handled by the LLM
+    // using ElevenLabs system tools, not by server-side keyword detection.
+    // This allows the LLM to make intelligent decisions based on full context.
 
     // Determine if we should use buffer words
     const shouldBuffer =
@@ -419,22 +397,6 @@ function createTextStream(text: string): ReadableStream<Uint8Array> {
       controller.close();
     },
   });
-}
-
-/**
- * Create a farewell stream for ending conversations
- */
-function createFarewellStream(): ReadableStream<Uint8Array> {
-  return createTextStream(
-    "It was great studying with you! Feel free to come back anytime. Goodbye!",
-  );
-}
-
-/**
- * Create a minimal stream for skip turn scenarios
- */
-function createSkipTurnStream(): ReadableStream<Uint8Array> {
-  return createTextStream("Take your time. I'm here when you're ready.");
 }
 
 /**

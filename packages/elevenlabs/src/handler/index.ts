@@ -11,8 +11,6 @@ export {
   isSystemTool,
   hasSystemTools,
   extractSystemTools,
-  shouldEndConversation,
-  shouldSkipTurn,
   SYSTEM_TOOL_NAMES,
 } from "./system-tools.js";
 
